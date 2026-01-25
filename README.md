@@ -1,61 +1,85 @@
-<div align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="https://i.ibb.co/jvkPgrRH/Vista-1.png">
-    <source media="(prefers-color-scheme: light)" srcset="https://i.ibb.co/jvkPgrRH/Vista-2.png">
-    <img alt="Vista Logo" src="https://i.ibb.co/jvkPgrRH/Vista-2.png" width="200px">
-  </picture>
-  
-  **Modern Production Intelligence**
+# Vista | Production Management System
 
-  Vista is a high-end, minimalist ERP designed for the modern manufacturer. 
-  Built specifically for liquid-based industries, Vista bridges the gap between 
-  raw chemical formulation and retail-ready inventory.
-</div>
+![Vista Banner](https://i.ibb.co/jvkPgrRH/Vista-1.png)
 
+Vista is a high-end, minimalist production management platform designed for modern manufacturing. It streamlines complex formulation processes, manages multi-tier inventory, and provides real-time financial analytics for liquid-based product businesses (e.g., Skin Care and Hair Care).
 
-## 💎 Core Pillars
+## Key Features
 
-### ⚗️ Precision Formula Engine
-Turn formulations into financial data. Vista doesn't just store recipes; it calculates the pulse of your product.
-* **Dynamic Unit Costing**: Real-time cost-per-unit calculation ($) based on fluctuating raw ingredient market prices.
-* **Margin Guard**: Live profitability projections during the R&D stage—know your margins before you blend.
-* **Resource Mapping**: Granular tracking of ingredient concentration and SKU complexity.
+### Precision Formula Engine
+- **Dynamic Costing**: Automatically calculate the cost of a finished unit based on current market prices of raw ingredients.
+- **Complexity Tracking**: Monitor the number of ingredients and resource distribution for every SKU.
+- **Margin Analysis**: Real-time margin projections during the formula creation stage.
 
-### 🏭 Intelligent Production Hub
-Bridge the gap between "The Batch" and "The Bottle."
-* **Dual-Mode Execution**: Run production by **Unit Count** (bottles) or **Total Batch Weight** (kg/L).
-* **Zero-Loss Sync**: Automated inventory depletion across raw ingredients and packaging upon run completion.
-* **Pre-Flight Simulation**: Visual bottleneck alerts that identify stock shortages *before* you start a run.
+### Intelligent Production Hub
+- **Dual-Mode Production**: Execute runs by "Unit Count" (bottles) or "Total Batch Weight" (kg/L).
+- **Auto-Deduction**: Real-time inventory sync that consumes raw ingredients and packaging materials upon production completion.
+- **Constraint Simulation**: Visual alerts for insufficient stock before a production run begins.
 
-### 📊 Financial Insights & Analytics
-Executive-level visibility into your warehouse capital.
-* **Inventory Valuation**: Instantly see the dollar value of your raw materials vs. finished goods.
-* **Performance Tiers**: Identify high-margin "Hero SKUs" versus low-performance inventory.
-* **Market Price Sync**: Global price updates that ripple through every formula in your system.
+### Integrated Inventory Management
+- **Ingredients & Packaging**: Separate, dedicated modules for raw materials and containers.
+- **Market Price Sync**: Update market prices globally to reflect in all associated formula costs.
+- **Low-Stock Alerts**: Automated dashboard alerts when resources dip below operational thresholds.
 
----
+### Financial Analytics
+- **Projected Profitability**: Calculate potential revenue based on current sellable stock.
+- **Inventory Valuation**: Monitor the total capital tied up in raw materials vs. finished goods.
+- **SKU Performance**: Identify top-performing products by inventory value and margin.
 
-## 🛠 Tech Stack
+## Tech Stack
 
-| Layer | Technology |
-| :--- | :--- |
-| **Frontend** | React 19 (ES6+ Modules) |
-| **Styling** | Tailwind CSS (Modern Noir Theme) |
-| **Backend/Auth** | Supabase (PostgreSQL) |
-| **Intelligence** | Google Gemini API (Strategic Marketing) |
-| **Icons** | Custom SVG UI Library |
+- **Frontend**: React 19 (ES6+ Modules)
+- **Styling**: Tailwind CSS (Sophisticated Dark/Light mode support)
+- **Backend/Auth**: Supabase (Authentication & Profile Management)
+- **Intelligence**: Google Gemini API (Strategic Marketing & Insights)
+- **Icons**: Custom SVG-based UI library
 
----
-
-## 🚀 Getting Started
+## Getting Started
 
 ### Prerequisites
-* **Node.js**: v18.0.0 or higher
-* **Supabase**: Active project for Auth & Database
-* **Gemini API**: Access key for intelligence features
+- A modern browser with ES module support.
+- A Supabase project for authentication.
+- A Google Gemini API key (for marketing features).
 
 ### Installation
-1. **Clone the repository:**
+
+1. Clone the repository:
    ```bash
-   git clone https://github.com/Hamza3075/Vista.git
-   cd Vista
+   git clone https://github.com/your-username/vista-production.git
+   ```
+2. Navigate to the project root:
+   ```bash
+   cd vista-production
+   ```
+3. Set up your environment variables:
+   - `process.env.API_KEY`: Your Gemini API Key.
+   - Configure `lib/supabaseClient.ts` with your project URL and key.
+
+4. Open `index.html` via a local development server (e.g., Live Server or Vite).
+
+## Project Structure
+
+```text
+├── components/          # Modular UI components
+│   ├── ProductionView.tsx
+│   ├── IngredientsView.tsx
+│   ├── DashboardView.tsx
+│   └── ...
+├── store/               # Centralized state management
+│   └── StoreContext.tsx
+├── context/             # Auth & Global providers
+├── lib/                 # Third-party service clients (Supabase)
+├── types.ts             # TypeScript interfaces and enums
+└── constants.ts         # Initial mock data and config
+```
+
+## Design System
+
+Vista utilizes a "Modern Noir" aesthetic:
+- **Primary Background**: `#000000` (Dark) / `#FFFFFF` (Light)
+- **Accent**: `#ebcd54` (Vista Gold)
+- **Typography**: Inter (Clean, sans-serif)
+
+---
+
+&copy; 2025 Vista Management Systems. Built for clarity and precision.
