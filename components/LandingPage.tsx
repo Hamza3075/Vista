@@ -1,19 +1,12 @@
-import React, { useState } from 'react';
-import { AuthModal } from './AuthModal';
+
+import React from 'react';
 
 interface LandingPageProps {
   darkMode: boolean;
+  onEnter: (view: 'signin' | 'signup') => void;
 }
 
-export const LandingPage: React.FC<LandingPageProps> = ({ darkMode }) => {
-  const [showAuth, setShowAuth] = useState(false);
-  const [authView, setAuthView] = useState<'signin' | 'signup'>('signin');
-
-  const openAuth = (view: 'signin' | 'signup') => {
-    setAuthView(view);
-    setShowAuth(true);
-  };
-
+export const LandingPage: React.FC<LandingPageProps> = ({ darkMode, onEnter }) => {
   return (
     <div className="min-h-screen bg-white dark:bg-vista-bg text-neutral-900 dark:text-vista-text transition-colors duration-500 flex flex-col font-sans">
       {/* Navigation */}
@@ -24,7 +17,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ darkMode }) => {
           className="h-10 w-auto" 
         />
         <button 
-          onClick={() => openAuth('signin')}
+          onClick={() => onEnter('signin')}
           className="text-sm font-medium uppercase tracking-wide text-neutral-500 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-vista-text transition-colors"
         >
           Log In
@@ -46,7 +39,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ darkMode }) => {
 
           <div className="pt-8">
             <button 
-              onClick={() => openAuth('signup')}
+              onClick={() => onEnter('signup')}
               className="group relative inline-flex items-center gap-3 px-8 py-4 bg-neutral-900 dark:bg-vista-accent text-white dark:text-neutral-900 text-sm font-bold uppercase tracking-widest rounded-sm overflow-hidden transition-all hover:scale-105 active:scale-95 shadow-xl hover:shadow-2xl dark:hover:bg-yellow-400"
             >
               <span>Enter Workspace</span>
@@ -97,8 +90,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({ darkMode }) => {
       <footer className="px-8 py-8 border-t border-neutral-200 dark:border-neutral-800 text-center text-xs text-neutral-400 dark:text-neutral-600 uppercase tracking-widest">
         &copy; {new Date().getFullYear()} Vista Management Systems. All rights reserved.
       </footer>
-
-      <AuthModal isOpen={showAuth} onClose={() => setShowAuth(false)} initialView={authView} />
     </div>
   );
 };
