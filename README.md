@@ -12,11 +12,6 @@
   raw chemical formulation and retail-ready inventory.
 </div>
 
----
-
-[**Explore the Demo**](#) | [**Documentation**](#) | [**Report a Bug**](#)
-
----
 
 ## 💎 Core Pillars
 
