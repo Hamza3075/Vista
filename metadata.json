@@ -1,0 +1,5 @@
+{
+  "name": "Vista",
+  "description": "A comprehensive production management system for Vista, handling formulas, ingredients inventory, packaging, and sales analytics.",
+  "requestFramePermissions": []
+}
