@@ -1,20 +1,67 @@
 <div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://i.ibb.co/jvkPgrRH/Vista-1.png">
+    <source media="(prefers-color-scheme: light)" srcset="https://i.ibb.co/jvkPgrRH/Vista-2.png">
+    <img alt="Vista Logo" src="https://i.ibb.co/jvkPgrRH/Vista-2.png" width="200px">
+  </picture>
+  
+  **Modern Production Intelligence**
+
+  Vista is a high-end, minimalist ERP designed for the modern manufacturer. 
+  Built specifically for liquid-based industries, Vista bridges the gap between 
+  raw chemical formulation and retail-ready inventory.
 </div>
 
-# Run and deploy your AI Studio app
+---
 
-This contains everything you need to run your app locally.
+[**Explore the Demo**](#) | [**Documentation**](#) | [**Report a Bug**](#)
 
-View your app in AI Studio: https://ai.studio/apps/drive/1iThmWFjjISzuiYOCejLPx57nZZATEwXI
+---
 
-## Run Locally
+## 💎 Core Pillars
 
-**Prerequisites:**  Node.js
+### ⚗️ Precision Formula Engine
+Turn formulations into financial data. Vista doesn't just store recipes; it calculates the pulse of your product.
+* **Dynamic Unit Costing**: Real-time cost-per-unit calculation ($) based on fluctuating raw ingredient market prices.
+* **Margin Guard**: Live profitability projections during the R&D stage—know your margins before you blend.
+* **Resource Mapping**: Granular tracking of ingredient concentration and SKU complexity.
 
+### 🏭 Intelligent Production Hub
+Bridge the gap between "The Batch" and "The Bottle."
+* **Dual-Mode Execution**: Run production by **Unit Count** (bottles) or **Total Batch Weight** (kg/L).
+* **Zero-Loss Sync**: Automated inventory depletion across raw ingredients and packaging upon run completion.
+* **Pre-Flight Simulation**: Visual bottleneck alerts that identify stock shortages *before* you start a run.
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+### 📊 Financial Insights & Analytics
+Executive-level visibility into your warehouse capital.
+* **Inventory Valuation**: Instantly see the dollar value of your raw materials vs. finished goods.
+* **Performance Tiers**: Identify high-margin "Hero SKUs" versus low-performance inventory.
+* **Market Price Sync**: Global price updates that ripple through every formula in your system.
+
+---
+
+## 🛠 Tech Stack
+
+| Layer | Technology |
+| :--- | :--- |
+| **Frontend** | React 19 (ES6+ Modules) |
+| **Styling** | Tailwind CSS (Modern Noir Theme) |
+| **Backend/Auth** | Supabase (PostgreSQL) |
+| **Intelligence** | Google Gemini API (Strategic Marketing) |
+| **Icons** | Custom SVG UI Library |
+
+---
+
+## 🚀 Getting Started
+
+### Prerequisites
+* **Node.js**: v18.0.0 or higher
+* **Supabase**: Active project for Auth & Database
+* **Gemini API**: Access key for intelligence features
+
+### Installation
+
+1. **Clone the repository**
+   ```bash
+   git clone [https://github.com/your-username/vista-production.git](https://github.com/your-username/vista-production.git)
+   cd vista-production
