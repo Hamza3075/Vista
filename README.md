@@ -55,8 +55,7 @@ Executive-level visibility into your warehouse capital.
 * **Gemini API**: Access key for intelligence features
 
 ### Installation
-
-1. **Clone the repository**
+1. **Clone the repository:**
    ```bash
-   git clone [https://github.com/your-username/vista-production.git](https://github.com/your-username/vista-production.git)
-   cd vista-production
+   git clone https://github.com/Hamza3075/Vista.git
+   cd Vista
