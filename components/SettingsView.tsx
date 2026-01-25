@@ -42,6 +42,35 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ darkMode, setDarkMod
     }
   };
 
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files || e.target.files.length === 0) return;
+    
+    const file = e.target.files[0];
+    const fileExt = file.name.split('.').pop();
+    const fileName = `${Math.random()}.${fileExt}`;
+    const filePath = `${user?.id}/${fileName}`;
+
+    setIsSaving(true);
+    setMessage(null);
+
+    try {
+        const { error: uploadError } = await supabase.storage
+            .from('avatars')
+            .upload(filePath, file);
+
+        if (uploadError) throw uploadError;
+
+        const { data } = supabase.storage.from('avatars').getPublicUrl(filePath);
+        
+        setAvatarUrl(data.publicUrl);
+        setMessage({ type: 'success', text: 'Image uploaded. Click "Update Profile" to save changes.' });
+    } catch (error: any) {
+        setMessage({ type: 'error', text: 'Error uploading image: ' + error.message });
+    } finally {
+        setIsSaving(false);
+    }
+  };
+
   return (
     <div className="p-8 max-w-6xl mx-auto space-y-8 animate-fade-in pb-20">
       <header className="border-b border-neutral-200 dark:border-neutral-800 pb-6">
@@ -73,15 +102,21 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ darkMode, setDarkMod
                         </div>
                     )}
                     
-                    {/* Simple URL input for avatar for now */}
-                    <div className="w-full relative">
-                       <label className="sr-only">Avatar URL</label>
+                    <div className="w-full relative text-center">
+                       <label 
+                           htmlFor="avatar-upload" 
+                           className="cursor-pointer text-xs font-bold uppercase tracking-wide text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-vista-text transition-colors inline-flex items-center gap-2 px-3 py-2 border border-neutral-200 dark:border-neutral-800 rounded-sm hover:border-neutral-400 dark:hover:border-neutral-600"
+                       >
+                           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
+                           Upload Photo
+                       </label>
                        <input 
-                         type="text" 
-                         placeholder="Image URL..."
-                         value={avatarUrl}
-                         onChange={(e) => setAvatarUrl(e.target.value)}
-                         className="w-full text-center text-xs border-b border-neutral-200 dark:border-neutral-700 bg-transparent py-1 outline-none text-neutral-500 focus:border-neutral-400 dark:focus:border-vista-accent"
+                         id="avatar-upload"
+                         type="file" 
+                         accept="image/*"
+                         onChange={handleImageUpload}
+                         disabled={isSaving}
+                         className="hidden"
                        />
                     </div>
                 </div>

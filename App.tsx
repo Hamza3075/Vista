@@ -44,6 +44,7 @@ const AppContent: React.FC<AppContentProps> = ({ darkMode, setDarkMode }) => {
   // Use metadata name if available, otherwise email
   const displayName = user?.user_metadata?.full_name || user?.email || 'User';
   const initial = displayName.charAt(0).toUpperCase();
+  const avatarUrl = user?.user_metadata?.avatar_url;
 
   return (
     <div className="flex h-screen bg-white dark:bg-vista-bg overflow-hidden font-sans text-neutral-900 dark:text-vista-text transition-colors duration-300 animate-fade-in">
@@ -108,9 +109,13 @@ const AppContent: React.FC<AppContentProps> = ({ darkMode, setDarkMode }) => {
 
         <div className="p-8">
             <div className="flex items-center gap-3 p-3 bg-neutral-50 dark:bg-neutral-800/50 rounded-sm">
-                <div className="w-8 h-8 rounded-full bg-neutral-200 dark:bg-neutral-700 flex items-center justify-center text-xs font-bold text-neutral-600 dark:text-neutral-300">
-                    {initial}
-                </div>
+                {avatarUrl ? (
+                   <img src={avatarUrl} alt="Profile" className="w-8 h-8 rounded-full object-cover border border-neutral-200 dark:border-neutral-700" />
+                ) : (
+                   <div className="w-8 h-8 rounded-full bg-neutral-200 dark:bg-neutral-700 flex items-center justify-center text-xs font-bold text-neutral-600 dark:text-neutral-300">
+                      {initial}
+                   </div>
+                )}
                 <div className="flex-1 min-w-0">
                     <p className="text-xs font-medium truncate text-neutral-900 dark:text-vista-text">{displayName}</p>
                     {user?.user_metadata?.full_name && (
