@@ -6,7 +6,7 @@ import { KpiCard, DataTable, StatusBadge, PageHeader } from './Common';
 import { Product } from '../types';
 
 interface DashboardViewProps {
-  setView: (view: 'production' | 'ingredients' | 'packaging' | 'marketing' | 'settings') => void;
+  setView: (view: 'production' | 'inventory' | 'analytics' | 'settings') => void;
 }
 
 export const DashboardView: React.FC<DashboardViewProps> = ({ setView }) => {
@@ -37,7 +37,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setView }) => {
 
   const alerts = useMemo(() => {
     const ingredientAlerts = ingredients
-      .filter(i => i.stock < (i.minStock ?? 50000)) // Fallback to 50L if no minStock set
+      .filter(i => i.stock < (i.minStock ?? 50000))
       .map(i => ({ 
         type: 'Ingredient', 
         name: i.name, 
@@ -47,7 +47,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setView }) => {
       }));
 
     const packagingAlerts = packaging
-      .filter(p => p.stock < (p.minStock ?? 100)) // Fallback to 100pcs if no minStock set
+      .filter(p => p.stock < (p.minStock ?? 100))
       .map(p => ({ 
         type: 'Packaging', 
         name: p.name, 
@@ -82,8 +82,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setView }) => {
             <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                {[
                  { label: 'Production', icon: 'M19.428 15.428a2 2 0 00-1.022-.547l-2.384-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z', view: 'production', primary: true },
-                 { label: 'Restock', icon: 'M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z', view: 'ingredients' },
-                 { label: 'Marketing', icon: 'M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4', view: 'marketing' }
+                 { label: 'Inventory', icon: 'M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4', view: 'inventory' },
+                 { label: 'Analytics', icon: 'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z', view: 'analytics' }
                ].map(action => (
                  <button 
                    key={action.view}
@@ -139,7 +139,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setView }) => {
                    </div>
                    <div className="text-right shrink-0">
                       <p className={`text-sm font-mono font-bold ${alert.stock < (alert.threshold * 0.2) ? 'text-red-600' : 'text-neutral-500'}`}>{alert.stock.toLocaleString()} {alert.unit}</p>
-                      <button onClick={() => setView(alert.type === 'Ingredient' ? 'ingredients' : 'packaging')} className="text-[9px] font-bold text-neutral-400 hover:text-neutral-900 dark:hover:text-vista-text underline mt-1">Restock</button>
+                      <button onClick={() => setView('inventory')} className="text-[9px] font-bold text-neutral-400 hover:text-neutral-900 dark:hover:text-vista-text underline mt-1">Restock</button>
                    </div>
                  </div>
                ))

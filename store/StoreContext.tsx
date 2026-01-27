@@ -33,6 +33,7 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       setPackaging([]);
       setProducts([]);
       setRoles([]);
+      setTokens([]);
       setUserAccessList([]);
       setLoading(false);
       return;
@@ -41,16 +42,17 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     const fetchData = async () => {
       setLoading(true);
       try {
-        const [ingRes, packRes, prodRes, roleRes, accessRes] = await Promise.all([
+        const [ingRes, packRes, prodRes, roleRes, accessRes, tokenRes] = await Promise.all([
           supabase.from('ingredients').select('*').eq('user_id', user.id),
           supabase.from('packaging').select('*').eq('user_id', user.id),
           supabase.from('products').select('*, product_formulas(*)').eq('user_id', user.id),
           supabase.from('roles').select('*'),
-          supabase.from('user_access').select('*')
+          supabase.from('user_access').select('*'),
+          supabase.from('invite_tokens').select('*').order('created_at', { ascending: false })
         ]);
 
         if (ingRes.data) setIngredients(ingRes.data.map(i => ({ id: i.id, name: i.name, stock: i.stock, unit: i.unit, costPerBaseUnit: i.cost_per_base_unit, minStock: i.min_stock })));
-        if (packRes.data) setPackaging(packRes.data.map(p => ({ id: p.id, name: p.name, capacity: p.capacity, stock: p.stock, cost: p.cost, minStock: p.min_stock })));
+        if (packRes.data) setPackaging(packRes.data.map(p => ({ id: p.id, name: p.name, capacity: p.capacity, stock: p.stock, cost: p.cost, min_stock: p.min_stock })));
         if (prodRes.data) setProducts(prodRes.data.map(p => ({ 
           id: p.id, 
           name: p.name, 
@@ -61,10 +63,19 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
           formula: p.product_formulas.map((f: any) => ({ ingredientId: f.ingredient_id, amount: f.amount })) 
         })));
         
-        if (roleRes.data) {
+        if (tokenRes.data) {
+          setTokens(tokenRes.data.map(t => ({
+            id: t.id,
+            token: t.token,
+            createdAt: t.created_at,
+            status: t.status,
+            usedBy: t.used_by
+          })));
+        }
+
+        if (roleRes.data && roleRes.data.length > 0) {
           setRoles(roleRes.data.map(r => ({ id: r.id, name: r.name, permissions: r.permissions })));
         } else {
-          // Initialize default roles if table empty
           const initialRoles: Role[] = [
             { id: 'owner', name: 'Owner', permissions: { products: { read: true, create: true, update: true, delete: true }, ingredients: { read: true, create: true, update: true, delete: true }, packaging: { read: true, create: true, update: true, delete: true }, sales: { read: true, create: true, update: true, delete: true }, access: { read: true, create: true, update: true, delete: true } } },
             { id: 'sales-eng', name: 'Sales Engineer', permissions: { ...DEFAULT_PERMISSIONS, sales: { read: true, create: true, update: false, delete: false } } },
@@ -74,7 +85,6 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         }
 
         if (accessRes.data) {
-          /* Add id property to satisfy DataTable constraint */
           setUserAccessList(accessRes.data.map(a => ({ id: a.user_id, userId: a.user_id, email: a.email, roleId: a.role_id, customPermissions: a.custom_permissions })));
         }
 
@@ -114,7 +124,6 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     if (!error) setUserAccessList(prev => {
       const exists = prev.find(a => a.userId === userId);
       if (exists) return prev.map(a => a.userId === userId ? { ...a, ...updates } : a);
-      /* Ensure newly added access record has an id */
       return [...prev, { id: userId, userId, email: updates.email!, roleId: updates.roleId!, ...updates }];
     });
   };
@@ -123,7 +132,6 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     if (!user) return;
     const { error } = await supabase.auth.updateUser({ data: { is_authorized: val } });
     if (!error && val) {
-      // Create initial access record
       await updateUserAccess(user.id, { email: user.email!, roleId: user.email === 'safwatkamel6000@gmail.com' ? 'owner' : 'guest' });
     }
   };
@@ -234,27 +242,62 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     return { success: true, message: `Invoice recorded.` };
   };
 
-  /* Implementation of updateSettings */
   const updateSettings = (newSettings: Partial<AppSettings>) => {
     setSettings(prev => ({ ...prev, ...newSettings }));
   };
 
   const generateInviteToken = async () => {
+    if (!user) return '';
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
     let result = '';
     for (let i = 0; i < 40; i++) result += chars.charAt(Math.floor(Math.random() * chars.length));
-    const { data, error } = await supabase.from('invite_tokens').insert([{ token: result, status: 'active' }]).select().single();
-    if (error || !data) return '';
-    setTokens(prev => [{ id: data.id, token: data.token, createdAt: data.created_at, status: data.status, usedBy: data.used_by }, ...prev]);
+    
+    const { data, error } = await supabase
+      .from('invite_tokens')
+      .insert([{ token: result, status: 'active', user_id: user.id }])
+      .select()
+      .single();
+    
+    if (error || !data) {
+      console.error("Token generation error:", error);
+      return '';
+    }
+    
+    setTokens(prev => [{ 
+      id: data.id, 
+      token: data.token, 
+      createdAt: data.created_at, 
+      status: data.status, 
+      usedBy: data.used_by 
+    }, ...prev]);
+    
     return result;
   };
 
   const validateInviteToken = async (tokenString: string, userId: string): Promise<{ success: boolean; message: string }> => {
-    const { data: tokenData, error: fetchError } = await supabase.from('invite_tokens').select('*').eq('token', tokenString).eq('status', 'active').single();
-    if (fetchError || !tokenData) return { success: false, message: 'Invalid token.' };
-    await supabase.from('invite_tokens').update({ status: 'used', used_by: userId }).eq('id', tokenData.id);
+    const { data: tokenData, error: fetchError } = await supabase
+      .from('invite_tokens')
+      .select('*')
+      .eq('token', tokenString)
+      .eq('status', 'active')
+      .single();
+      
+    if (fetchError || !tokenData) return { success: false, message: 'Invalid or already used token.' };
+    
+    const { error: updateError } = await supabase
+      .from('invite_tokens')
+      .update({ status: 'used', used_by: userId })
+      .eq('id', tokenData.id);
+      
+    if (updateError) return { success: false, message: 'Error validating token.' };
+    
     await setAuthorized(true);
     return { success: true, message: 'Access granted.' };
+  };
+
+  const removeInviteToken = async (id: string) => {
+    const { error } = await supabase.from('invite_tokens').delete().eq('id', id);
+    if (!error) setTokens(prev => prev.filter(t => t.id !== id));
   };
 
   return (
@@ -265,7 +308,7 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         addPackaging, updatePackaging,
         addProduct, updateProduct, removeProduct,
         produceProduct, recordSale, updateSettings,
-        generateInviteToken, validateInviteToken, removeInviteToken: async (id) => { await supabase.from('invite_tokens').delete().eq('id', id); setTokens(prev => prev.filter(t => t.id !== id)); },
+        generateInviteToken, validateInviteToken, removeInviteToken,
         setAuthorized, addRole, updateRole, removeRole, updateUserAccess
       }}
     >
