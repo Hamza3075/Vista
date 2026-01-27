@@ -98,13 +98,13 @@ export const MarketingView: React.FC = () => {
   return (
     <div className="p-4 md:p-8 max-w-6xl mx-auto space-y-8 animate-fade-in overflow-x-hidden">
       <PageHeader 
-        title="Marketing & Sales" 
-        subtitle="Manage price points and record customer invoices"
+        title="Sales & Invoicing" 
+        subtitle="Manage market pricing and record glass sales"
         actions={
           <div className="flex gap-4 items-center w-full sm:w-auto">
             <div className="relative flex-1 sm:w-64">
                 <input 
-                type="text" placeholder="Search..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}
+                type="text" placeholder="Filter products..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}
                 className="w-full pl-9 pr-4 py-2 border border-neutral-300 dark:border-neutral-700 rounded-sm text-xs bg-white dark:bg-vista-bg outline-none"
                 />
                 <svg className="w-4 h-4 text-neutral-400 absolute left-3 top-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
@@ -118,7 +118,7 @@ export const MarketingView: React.FC = () => {
                 className="px-6 py-2.5 bg-neutral-900 dark:bg-vista-accent text-white dark:text-neutral-900 rounded-sm font-bold text-[10px] uppercase tracking-widest shadow-xl hover:bg-neutral-800 transition-all flex items-center gap-2"
             >
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
-                Invoice
+                New Invoice
             </button>
           </div>
         }
@@ -127,7 +127,7 @@ export const MarketingView: React.FC = () => {
       <DataTable<Product> 
         data={filteredProducts}
         columns={[
-          { header: 'Product Name', isSticky: true, render: p => (
+          { header: 'Glass Item', isSticky: true, render: p => (
             <input 
               className="bg-transparent border-b border-transparent focus:border-neutral-400 outline-none w-full py-1 text-neutral-900 dark:text-vista-text font-medium"
               defaultValue={p.name} onBlur={e => e.target.value !== p.name && updateProduct(p.id, { name: e.target.value })}
@@ -139,7 +139,7 @@ export const MarketingView: React.FC = () => {
               value={p.category} onChange={val => updateProduct(p.id, { category: val as ProductCategory })} 
             />
           )},
-          { header: 'Stock', align: 'center', render: p => <span className={p.stock < 10 ? 'text-red-500 font-bold' : ''}>{p.stock} units</span> },
+          { header: 'Inventory', align: 'center', render: p => <span className={p.stock < 10 ? 'text-red-500 font-bold' : ''}>{p.stock} glasses</span> },
           { header: 'Unit Cost', align: 'right', isHiddenMobile: true, render: p => `EGP ${getProductCost(p).toFixed(2)}` },
           { header: 'Price (EGP)', align: 'right', render: p => (
             <input 
@@ -164,10 +164,10 @@ export const MarketingView: React.FC = () => {
       />
 
       {/* Invoice Modal */}
-      <ModalBase isOpen={showInvoice} onClose={() => setShowInvoice(false)} title="Record Invoice" maxWidth="max-w-4xl" footer={
+      <ModalBase isOpen={showInvoice} onClose={() => setShowInvoice(false)} title="Record Sales Invoice" maxWidth="max-w-4xl" footer={
           <>
             <button onClick={() => setShowInvoice(false)} className="px-4 py-2 text-neutral-500 text-xs font-medium uppercase">Cancel</button>
-            <button onClick={handleInvoice} disabled={!isFormValid} className="px-8 py-2 bg-neutral-900 dark:bg-vista-accent text-white dark:text-neutral-900 text-xs font-bold uppercase rounded-sm shadow-xl hover:bg-neutral-800 transition-all disabled:opacity-30">Complete Invoice</button>
+            <button onClick={handleInvoice} disabled={!isFormValid} className="px-8 py-2 bg-neutral-900 dark:bg-vista-accent text-white dark:text-neutral-900 text-xs font-bold uppercase rounded-sm shadow-xl hover:bg-neutral-800 transition-all disabled:opacity-30">Record Sale</button>
           </>
       }>
           <div className="space-y-4">
@@ -181,7 +181,7 @@ export const MarketingView: React.FC = () => {
                   return (
                     <div key={item.id} className="relative group border border-neutral-100 dark:border-neutral-800 p-4 rounded-sm animate-fade-in">
                         <div className="absolute -top-3 left-3 bg-white dark:bg-neutral-900 px-2">
-                           <span className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest">Item {index + 1}</span>
+                           <span className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest">Glass {index + 1}</span>
                         </div>
                         
                         {invoiceItems.length > 1 && (
@@ -197,13 +197,13 @@ export const MarketingView: React.FC = () => {
                             <div className="md:col-span-5">
                                 <label className="block text-[10px] font-bold text-neutral-400 uppercase tracking-widest mb-1">Product</label>
                                 <CustomSelect 
-                                  options={products.map(p => ({ value: p.id, label: p.name, subLabel: `Stock: ${p.stock}` }))} 
+                                  options={products.map(p => ({ value: p.id, label: p.name, subLabel: `Inventory: ${p.stock}` }))} 
                                   value={item.productId} 
                                   onChange={(val) => updateInvoiceRow(item.id, { productId: val })} 
                                 />
                             </div>
                             <div className="md:col-span-3">
-                                <label className="block text-[10px] font-bold text-neutral-400 uppercase tracking-widest mb-1">Qty (L/Kg)</label>
+                                <label className="block text-[10px] font-bold text-neutral-400 uppercase tracking-widest mb-1">Vol (L/Kg)</label>
                                 <input 
                                   type="number" step="0.01" 
                                   className="w-full border border-neutral-300 dark:border-neutral-700 rounded-sm p-2 text-sm bg-white dark:bg-vista-bg outline-none focus:border-vista-accent" 
@@ -241,7 +241,7 @@ export const MarketingView: React.FC = () => {
                   className="flex items-center gap-2 px-6 py-2 border-2 border-dashed border-neutral-200 dark:border-neutral-800 rounded-sm text-neutral-400 hover:text-vista-accent hover:border-vista-accent transition-all group"
                 >
                   <svg className="w-5 h-5 group-hover:scale-110 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" /></svg>
-                  <span className="text-[10px] font-bold uppercase tracking-[0.2em]">Add Product</span>
+                  <span className="text-[10px] font-bold uppercase tracking-[0.2em]">Add Glass Type</span>
                 </button>
               </div>
 
@@ -254,10 +254,10 @@ export const MarketingView: React.FC = () => {
       </ModalBase>
 
       <ConfirmModal 
-        isOpen={deleteModal.isOpen} title="Delete Product" message={`Are you sure you want to delete "${deleteModal.name}"?`}
+        isOpen={deleteModal.isOpen} title="Delete Product" message={`Are you sure you want to delete "${deleteModal.name}"? This will remove the formula and its sales records.`}
         onConfirm={() => { if (deleteModal.id) removeProduct(deleteModal.id); setDeleteModal({ isOpen: false, id: '', name: '' }); }}
         onCancel={() => setDeleteModal({ isOpen: false, id: '', name: '' })}
-        confirmText="Delete Product" isDestructive={true}
+        confirmText="Delete Formula" isDestructive={true}
       />
     </div>
   );

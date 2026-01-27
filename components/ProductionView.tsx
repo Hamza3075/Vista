@@ -81,7 +81,7 @@ const AddProductForm: React.FC<AddProductFormProps> = ({ category, onClose }) =>
         </div>
 
         <div>
-           <label className="block text-[10px] font-bold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide mb-1">Packaging Type</label>
+           <label className="block text-[10px] font-bold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide mb-1">Glass Type</label>
            <CustomSelect 
              options={packaging.map(p => ({ value: p.id, label: `${p.name} (${p.capacity}ml)`, subLabel: `EGP ${(p.cost || 0).toFixed(2)}` }))}
              value={selectedPackId} onChange={setSelectedPackId}
@@ -114,7 +114,7 @@ const AddProductForm: React.FC<AddProductFormProps> = ({ category, onClose }) =>
           
           <div className="bg-neutral-50 dark:bg-neutral-800/50 p-3 rounded-sm text-[10px] md:text-xs space-y-1 mt-2">
             <div className="flex justify-between text-neutral-500">
-              <span>Unit Cost (Liq + Pack):</span>
+              <span>Unit Cost (Liq + Glass):</span>
               <span className="font-bold text-neutral-900 dark:text-vista-text">EGP {(totalUnitCost || 0).toFixed(2)}</span>
             </div>
             <div className="flex justify-between items-center pt-1 border-t border-neutral-200 dark:border-neutral-700">
@@ -134,7 +134,7 @@ export const ProductionView: React.FC = () => {
   const [isAdding, setIsAdding] = useState(false);
   const [producingId, setProducingId] = useState<string | null>(null);
   const [inputValue, setInputValue] = useState<string>('');
-  const [productionMode, setProductionMode] = useState<'units' | 'batch'>('units');
+  const [productionMode, setProductionMode] = useState<'glasses' | 'batch'>('glasses');
 
   useEffect(() => {
     if (producingId) {
@@ -159,7 +159,7 @@ export const ProductionView: React.FC = () => {
     let units = 0;
     let totalBatchSizeL = 0;
 
-    if (productionMode === 'units') {
+    if (productionMode === 'glasses') {
       units = val;
       totalBatchSizeL = (units * producingPack.capacity) / 1000;
     } else {
@@ -211,8 +211,8 @@ export const ProductionView: React.FC = () => {
   return (
     <div className="p-4 md:p-8 max-w-6xl mx-auto h-full flex flex-col animate-fade-in overflow-x-hidden">
       <PageHeader 
-        title="Production Hub" 
-        subtitle="Manage formulas and execute manufacturing runs" 
+        title="Glass Production Hub" 
+        subtitle="Manage formulas and execute manufacturing runs using our glass system" 
       />
 
       <div className="flex gap-4 md:gap-8 mb-8 overflow-x-auto whitespace-nowrap border-b border-neutral-100 dark:border-neutral-800">
@@ -247,15 +247,15 @@ export const ProductionView: React.FC = () => {
                       <h3 className="text-lg md:text-xl font-medium text-neutral-900 dark:text-vista-text group-hover:text-vista-accent transition-colors">{product.name}</h3>
                    </div>
                    <div className="text-right">
-                      <p className="text-[9px] text-neutral-400 dark:text-neutral-500 uppercase font-bold tracking-widest">Stock</p>
-                      <p className="text-xl md:text-2xl font-light text-neutral-900 dark:text-vista-text">{product.stock}</p>
+                      <p className="text-[9px] text-neutral-400 dark:text-neutral-500 uppercase font-bold tracking-widest">Inventory</p>
+                      <p className="text-xl md:text-2xl font-light text-neutral-900 dark:text-vista-text">{product.stock} <span className="text-[10px] uppercase">Glasses</span></p>
                    </div>
                  </div>
                  <div className="space-y-2 mb-6 text-xs md:text-sm text-neutral-600 dark:text-neutral-400 flex-1 border-t border-neutral-100 dark:border-neutral-800 pt-4">
-                   <div className="flex justify-between"><span className="text-neutral-400 font-light">Packaging</span><span className="font-medium text-neutral-800 dark:text-neutral-300 truncate max-w-[120px]">{pack?.name || '---'}</span></div>
-                   <div className="flex justify-between"><span className="text-neutral-400 font-light">Complexity</span><span className="font-medium text-neutral-800 dark:text-neutral-300">{product.formula.length} Ingred.</span></div>
+                   <div className="flex justify-between"><span className="text-neutral-400 font-light">Glass Type</span><span className="font-medium text-neutral-800 dark:text-neutral-300 truncate max-w-[120px]">{pack?.name || '---'}</span></div>
+                   <div className="flex justify-between"><span className="text-neutral-400 font-light">Recipe</span><span className="font-medium text-neutral-800 dark:text-neutral-300">{product.formula.length} Ingred.</span></div>
                  </div>
-                 <button onClick={() => setProducingId(product.id)} className="w-full py-2 border border-neutral-900 dark:border-vista-accent text-neutral-900 dark:text-vista-accent rounded-sm hover:bg-neutral-900 dark:hover:bg-vista-accent hover:text-white dark:hover:text-neutral-900 font-medium text-xs uppercase tracking-wide transition-all">Produce Batch</button>
+                 <button onClick={() => setProducingId(product.id)} className="w-full py-2 border border-neutral-900 dark:border-vista-accent text-neutral-900 dark:text-vista-accent rounded-sm hover:bg-neutral-900 dark:hover:bg-vista-accent hover:text-white dark:hover:text-neutral-900 font-medium text-xs uppercase tracking-wide transition-all">Start Batch</button>
               </div>
             );
           })}
@@ -270,37 +270,37 @@ export const ProductionView: React.FC = () => {
       {isAdding && activeTab !== 'all' && <AddProductForm category={activeTab} onClose={() => setIsAdding(false)} />}
 
       {producingId && producingProduct && producingPack && (
-        <ModalBase isOpen={!!producingId} onClose={() => setProducingId(null)} title={`Produce: ${producingProduct.name}`} footer={
+        <ModalBase isOpen={!!producingId} onClose={() => setProducingId(null)} title={`Batch Production: ${producingProduct.name}`} footer={
           <>
             <button onClick={() => setProducingId(null)} className="px-4 py-2 text-neutral-500 text-xs font-medium uppercase transition-colors">Cancel</button>
-            <button onClick={handleProduce} disabled={productionSimulation ? !productionSimulation.possible : true} className={`px-8 py-2 text-white dark:text-neutral-900 rounded-sm shadow-lg font-medium text-xs uppercase transition-colors ${(productionSimulation && productionSimulation.possible) ? 'bg-neutral-900 dark:bg-vista-accent' : 'bg-neutral-300 dark:bg-neutral-700 cursor-not-allowed'}`}>PRODUCE</button>
+            <button onClick={handleProduce} disabled={productionSimulation ? !productionSimulation.possible : true} className={`px-8 py-2 text-white dark:text-neutral-900 rounded-sm shadow-lg font-medium text-xs uppercase transition-colors ${(productionSimulation && productionSimulation.possible) ? 'bg-neutral-900 dark:bg-vista-accent' : 'bg-neutral-300 dark:bg-neutral-700 cursor-not-allowed'}`}>EXECUTE BATCH</button>
           </>
         }>
           <div className="text-[10px] text-neutral-500 font-light flex gap-2 mb-6">
-             <span>{producingPack.capacity}ml Units</span><span>•</span><span className="truncate">{producingPack.name}</span>
+             <span>{producingPack.capacity}ml Volume</span><span>•</span><span className="truncate">{producingPack.name}</span>
           </div>
           <div className="flex bg-neutral-100 dark:bg-neutral-800 p-1 rounded-sm w-full mb-6">
-              <button onClick={() => setProductionMode('units')} className={`flex-1 py-1.5 text-[10px] font-bold uppercase tracking-wide rounded-sm transition-all ${productionMode === 'units' ? 'bg-white dark:bg-neutral-700 text-neutral-900 dark:text-vista-text shadow-sm' : 'text-neutral-500'}`}>Units</button>
-              <button onClick={() => setProductionMode('batch')} className={`flex-1 py-1.5 text-[10px] font-bold uppercase tracking-wide rounded-sm transition-all ${productionMode === 'batch' ? 'bg-white dark:bg-neutral-700 text-neutral-900 dark:text-vista-text shadow-sm' : 'text-neutral-500'}`}>Batch (Kg/L)</button>
+              <button onClick={() => setProductionMode('glasses')} className={`flex-1 py-1.5 text-[10px] font-bold uppercase tracking-wide rounded-sm transition-all ${productionMode === 'glasses' ? 'bg-white dark:bg-neutral-700 text-neutral-900 dark:text-vista-text shadow-sm' : 'text-neutral-500'}`}>Glass System</button>
+              <button onClick={() => setProductionMode('batch')} className={`flex-1 py-1.5 text-[10px] font-bold uppercase tracking-wide rounded-sm transition-all ${productionMode === 'batch' ? 'bg-white dark:bg-neutral-700 text-neutral-900 dark:text-vista-text shadow-sm' : 'text-neutral-500'}`}>Total Batch (L)</button>
           </div>
           <div className="mb-6">
-            <label className="block text-[10px] font-bold text-neutral-400 uppercase tracking-wide mb-2">{productionMode === 'units' ? 'Quantity (Bottles)' : 'Total Batch Size'}</label>
+            <label className="block text-[10px] font-bold text-neutral-400 uppercase tracking-wide mb-2">{productionMode === 'glasses' ? 'Number of Glasses to Produce' : 'Batch Volume (Liters)'}</label>
             <input type="number" autoFocus className="w-full border-b-2 border-neutral-200 dark:border-neutral-700 px-2 py-2 text-3xl font-light text-neutral-900 dark:text-vista-text bg-transparent focus:border-neutral-900 dark:focus:border-vista-accent outline-none" placeholder="0" value={inputValue} onChange={e => setInputValue(e.target.value)} />
           </div>
           {productionSimulation && (
             <div className="mb-4 bg-neutral-50 dark:bg-neutral-800/50 rounded-sm border border-neutral-100 dark:border-neutral-800 overflow-hidden">
-              <div className="px-4 py-2 bg-neutral-100 dark:bg-neutral-800 border-b border-neutral-200 dark:border-neutral-700 text-[9px] font-bold text-neutral-500 uppercase">Requirement Summary ({productionSimulation.units} Units)</div>
+              <div className="px-4 py-2 bg-neutral-100 dark:bg-neutral-800 border-b border-neutral-200 dark:border-neutral-700 text-[9px] font-bold text-neutral-500 uppercase">Requirement Summary ({productionSimulation.units} Glasses)</div>
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-[10px] min-w-[300px]">
                   <thead className="bg-neutral-100 dark:bg-neutral-800 border-b border-neutral-200 dark:border-neutral-700">
-                    <tr><th className="px-4 py-2 font-medium text-neutral-500">Resource</th><th className="px-4 py-2 font-medium text-neutral-500 text-right">Need</th><th className="px-4 py-2 font-medium text-neutral-500 text-right">Status</th></tr>
+                    <tr><th className="px-4 py-2 font-medium text-neutral-500">Resource</th><th className="px-4 py-2 font-medium text-neutral-500 text-right">Required</th><th className="px-4 py-2 font-medium text-neutral-500 text-right">Status</th></tr>
                   </thead>
                   <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800">
                     {productionSimulation.resources.map((res, i) => (
                       <tr key={i} className={res.ok ? 'text-neutral-600 dark:text-neutral-300' : 'bg-red-50 dark:bg-red-900/20 text-red-700 font-medium'}>
                         <td className="px-4 py-2 truncate max-w-[120px]">{res.name}</td>
                         <td className="px-4 py-2 text-right">{(res.required || 0).toFixed(1)} {res.unit}</td>
-                        <td className="px-4 py-2 text-right">{res.ok ? 'OK' : 'LOW'}</td>
+                        <td className="px-4 py-2 text-right">{res.ok ? 'OK' : 'INSUFFICIENT'}</td>
                       </tr>
                     ))}
                   </tbody>

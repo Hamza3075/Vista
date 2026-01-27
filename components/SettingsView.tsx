@@ -240,10 +240,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ darkMode, setDarkMod
             <div className="flex items-center justify-between max-w-xl">
                 <div>
                     <div className="font-medium text-neutral-900 dark:text-vista-text text-sm">Default Input Mode</div>
-                    <div className="text-xs text-neutral-500 dark:text-neutral-400 mt-1">Choose between unit count (bottles) or total batch weight (kg/l) as the default.</div>
+                    <div className="text-xs text-neutral-500 dark:text-neutral-400 mt-1">Choose between glass count or total batch weight (kg/l) as the default.</div>
                 </div>
                 <div className="flex bg-neutral-100 dark:bg-neutral-800 p-1 rounded-sm">
-                   <button onClick={() => updateSettings({ defaultProductionMode: 'units' })} className={`px-3 py-1 text-xs font-bold uppercase rounded-sm transition-all ${settings.defaultProductionMode === 'units' ? 'bg-white dark:bg-neutral-700 shadow-sm text-neutral-900 dark:text-vista-text' : 'text-neutral-400'}`}>Units</button>
+                   <button onClick={() => updateSettings({ defaultProductionMode: 'glasses' })} className={`px-3 py-1 text-xs font-bold uppercase rounded-sm transition-all ${settings.defaultProductionMode === 'glasses' ? 'bg-white dark:bg-neutral-700 shadow-sm text-neutral-900 dark:text-vista-text' : 'text-neutral-400'}`}>Glasses</button>
                    <button onClick={() => updateSettings({ defaultProductionMode: 'batch' })} className={`px-3 py-1 text-xs font-bold uppercase rounded-sm transition-all ${settings.defaultProductionMode === 'batch' ? 'bg-white dark:bg-neutral-700 shadow-sm text-neutral-900 dark:text-vista-text' : 'text-neutral-400'}`}>Batch</button>
                 </div>
             </div>

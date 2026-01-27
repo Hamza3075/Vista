@@ -25,31 +25,31 @@ export const SalesView: React.FC = () => {
     return products.reduce((acc, p) => {
       const { profit } = getFinancials(p);
       return {
-        units: acc.units + p.stock,
+        glasses: acc.glasses + p.stock,
         profit: acc.profit + (profit * p.stock)
       };
-    }, { units: 0, profit: 0 });
+    }, { glasses: 0, profit: 0 });
   }, [products, ingredients, packaging]);
 
   return (
     <div className="p-4 md:p-8 max-w-6xl mx-auto space-y-8 animate-fade-in overflow-x-hidden">
       <PageHeader 
-        title="Analytics" 
-        subtitle="Financial performance and stock projections" 
+        title="Commercial Analytics" 
+        subtitle="Financial performance and sellable glass projections" 
       />
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
         <KpiCard 
-          label="Total Units" 
-          value={totals.units.toLocaleString()} 
+          label="Total Glasses" 
+          value={totals.glasses.toLocaleString()} 
           variant="accent" 
         />
         <KpiCard 
-          label="Projected Profit" 
+          label="Projected Gross Profit" 
           value={`EGP ${totals.profit.toLocaleString(undefined, { maximumFractionDigits: 0 })}`} 
         />
         <KpiCard 
-          label="Active SKUs" 
+          label="Active Product Lines" 
           value={products.length} 
         />
       </div>
@@ -57,17 +57,17 @@ export const SalesView: React.FC = () => {
       <DataTable<Product> 
         data={products}
         columns={[
-          { header: 'Product', render: p => p.name, isSticky: true },
-          { header: 'Stock', align: 'right', render: p => p.stock.toLocaleString() },
+          { header: 'Product Line', render: p => p.name, isSticky: true },
+          { header: 'Glass Stock', align: 'right', render: p => p.stock.toLocaleString() },
           { header: 'Unit Cost', align: 'right', isHiddenMobile: true, render: p => `EGP ${(getFinancials(p).cost || 0).toFixed(2)}` },
-          { header: 'Price', align: 'right', render: p => `EGP ${(p.salePrice || 0).toFixed(0)}` },
-          { header: 'Total Profit', align: 'right', render: p => {
+          { header: 'Market Price', align: 'right', render: p => `EGP ${(p.salePrice || 0).toFixed(0)}` },
+          { header: 'Stock Profit', align: 'right', render: p => {
             const { profit } = getFinancials(p);
             return <span className={profit * p.stock >= 0 ? 'text-neutral-900 dark:text-vista-text' : 'text-red-500'}>
               EGP {(profit * p.stock).toLocaleString(undefined, { maximumFractionDigits: 0 })}
             </span>;
           }},
-          { header: 'Margin', align: 'right', render: p => {
+          { header: 'Net Margin', align: 'right', render: p => {
             const { margin } = getFinancials(p);
             return <StatusBadge value={`${(margin || 0).toFixed(1)}%`} type={margin > 20 ? 'positive' : 'negative'} />;
           }}

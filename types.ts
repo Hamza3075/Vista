@@ -36,11 +36,11 @@ export interface Product {
   formula: FormulaItem[];
   packagingId: string;
   salePrice: number;
-  stock: number; // Number of finished units
+  stock: number; // Number of finished units (glasses)
 }
 
 export interface AppSettings {
-  defaultProductionMode: 'units' | 'batch';
+  defaultProductionMode: 'glasses' | 'batch';
 }
 
 export interface InviteToken {

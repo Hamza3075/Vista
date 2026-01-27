@@ -19,7 +19,7 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const [ingredients, setIngredients] = useState<Ingredient[]>([]);
   const [packaging, setPackaging] = useState<Packaging[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
-  const [settings, setSettings] = useState<AppSettings>({ defaultProductionMode: 'units' });
+  const [settings, setSettings] = useState<AppSettings>({ defaultProductionMode: 'glasses' });
   const [tokens, setTokens] = useState<InviteToken[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
   const [userAccessList, setUserAccessList] = useState<UserAccess[]>([]);
@@ -209,7 +209,7 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     const totalVolumeMl = batchSize * 1000;
     const unitsToProduce = Math.floor(totalVolumeMl / selectedPackaging.capacity);
     if (unitsToProduce <= 0) return { success: false, message: 'Batch size too small.' };
-    if (selectedPackaging.stock < unitsToProduce) return { success: false, message: `Insufficient packaging units.` };
+    if (selectedPackaging.stock < unitsToProduce) return { success: false, message: `Insufficient glasses available.` };
 
     setIngredients(prev => prev.map(ing => {
       const formulaItem = product.formula.find(f => f.ingredientId === ing.id);
@@ -226,7 +226,7 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     const newProdStock = product.stock + unitsToProduce;
     supabase.from('products').update({ stock: newProdStock }).eq('id', productId).then();
     setProducts(prev => prev.map(p => p.id === productId ? { ...p, stock: newProdStock } : p));
-    return { success: true, message: `Produced ${unitsToProduce} units.` };
+    return { success: true, message: `Produced ${unitsToProduce} glasses.` };
   };
 
   const recordSale = (productId: string, volumeL: number, pricePerUnit: number): { success: boolean; message: string } => {
