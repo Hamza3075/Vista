@@ -1,18 +1,23 @@
 
 import React, { useState } from 'react';
 import { supabase } from '../lib/supabaseClient';
+import { useStore } from '../store/StoreContext';
+import { useAuth } from '../context/AuthContext';
 
 interface AuthPageProps {
-  initialView?: 'signin' | 'signup';
+  initialView?: 'signin' | 'signup' | 'token';
   darkMode: boolean;
   onBack: () => void;
 }
 
 export const AuthPage: React.FC<AuthPageProps> = ({ initialView = 'signin', darkMode, onBack }) => {
-  const [view, setView] = useState<'signin' | 'signup'>(initialView);
+  const { validateInviteToken, setAuthorized } = useStore();
+  const { user } = useAuth();
+  const [view, setView] = useState<'signin' | 'signup' | 'token'>(initialView);
   const [email, setEmail] = useState('');
   const [fullName, setFullName] = useState('');
   const [password, setPassword] = useState('');
+  const [token, setToken] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -27,19 +32,20 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialView = 'signin', dark
         const { error } = await supabase.auth.signUp({
           email,
           password,
-          options: {
-            data: {
-              full_name: fullName,
-            }
-          }
+          options: { data: { full_name: fullName } }
         });
         if (error) throw error;
-      } else {
+        setView('token');
+      } else if (view === 'signin') {
         const { error } = await supabase.auth.signInWithPassword({
           email,
           password,
         });
         if (error) throw error;
+      } else if (view === 'token') {
+        const userId = user?.id || 'unknown';
+        const result = await validateInviteToken(token, userId);
+        if (!result.success) throw new Error(result.message);
       }
     } catch (err: any) {
       setError(err.message || 'An unexpected error occurred');
@@ -48,14 +54,72 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialView = 'signin', dark
     }
   };
 
+  const handleBypass = async () => {
+    if (user?.email === 'safwatkamel6000@gmail.com') {
+      setLoading(true);
+      await setAuthorized(true);
+      setLoading(false);
+    }
+  };
+
+  if (view === 'token') {
+    const isOwner = user?.email === 'safwatkamel6000@gmail.com';
+
+    return (
+      <div className="min-h-screen bg-white dark:bg-vista-bg text-neutral-900 dark:text-vista-text flex flex-col items-center justify-center p-6 animate-fade-in font-sans">
+        <div className="w-full max-w-sm space-y-10">
+          <div className="text-center space-y-4">
+            <img src={darkMode ? "https://i.ibb.co/jvkPgrRH/Vista-1.png" : "https://i.ibb.co/M5KLbVnh/Vista-2.png"} alt="Vista Logo" className="h-10 mx-auto mb-10" />
+            <h2 className="text-3xl font-light tracking-tight text-neutral-900 dark:text-vista-text">Access Verification</h2>
+            <p className="text-sm text-neutral-500 dark:text-neutral-400 font-light leading-relaxed">
+              Vista is currently in invitation-only mode. Please enter your 40-character access token provided by the administrator.
+            </p>
+          </div>
+
+          <form onSubmit={handleSubmit} className="space-y-6">
+            {error && (
+              <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-100 dark:border-red-900/30 text-red-600 dark:text-red-400 text-xs rounded-sm">
+                {error}
+              </div>
+            )}
+            <div className="space-y-2">
+              <label className="block text-[10px] font-bold text-neutral-400 dark:text-neutral-500 uppercase tracking-widest">Access Token</label>
+              <input 
+                type="text" required autoFocus
+                value={token} onChange={(e) => setToken(e.target.value)}
+                className="w-full border-b border-neutral-300 dark:border-neutral-700 py-3 text-xs font-mono text-vista-accent bg-transparent focus:border-vista-accent outline-none transition-colors"
+                placeholder="XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+              />
+              <div className="flex justify-between text-[10px] uppercase font-bold tracking-tight mt-1">
+                <span className={token.length === 40 ? 'text-emerald-500' : 'text-neutral-400'}>{token.length}/40 Characters</span>
+                {token.length > 0 && token.length !== 40 && <span className="text-red-400">Invalid length</span>}
+              </div>
+            </div>
+
+            <button 
+              type="submit" disabled={loading || token.length !== 40}
+              className="w-full py-4 bg-neutral-900 dark:bg-vista-accent text-white dark:text-neutral-900 text-sm font-bold uppercase tracking-[0.2em] rounded-sm hover:bg-neutral-800 dark:hover:bg-yellow-400 transition-all shadow-xl disabled:opacity-30 disabled:cursor-not-allowed mt-4"
+            >
+              {loading ? 'Verifying...' : 'Authorize Access'}
+            </button>
+          </form>
+
+          {isOwner && (
+            <div className="text-center space-y-4 pt-8 border-t border-neutral-100 dark:border-neutral-800 animate-fade-in">
+              <p className="text-[10px] text-neutral-400 uppercase tracking-widest font-bold">Administratoridentified</p>
+              <button onClick={handleBypass} disabled={loading} className="text-[11px] font-bold text-neutral-900 dark:text-vista-text hover:underline underline-offset-8 uppercase tracking-widest decoration-2 decoration-vista-accent">
+                {loading ? 'Processing...' : 'Bypass Access Gate →'}
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-white dark:bg-vista-bg text-neutral-900 dark:text-vista-text flex flex-col items-center justify-center p-6 animate-fade-in font-sans">
-      
-      {/* Back Button */}
-      <button 
-        onClick={onBack}
-        className="absolute top-8 left-8 flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-neutral-400 hover:text-neutral-900 dark:hover:text-vista-text transition-colors group"
-      >
+      <button onClick={onBack} className="absolute top-8 left-8 flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-neutral-400 hover:text-neutral-900 dark:hover:text-vista-text transition-colors group">
         <svg className="w-4 h-4 transition-transform group-hover:-translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
         </svg>
@@ -63,22 +127,16 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialView = 'signin', dark
       </button>
 
       <div className="w-full max-w-sm space-y-12">
-        {/* Header */}
         <div className="text-center space-y-4">
-          <img 
-            src={darkMode ? "https://i.ibb.co/jvkPgrRH/Vista-1.png" : "https://i.ibb.co/M5KLbVnh/Vista-2.png"} 
-            alt="Vista Logo" 
-            className="h-10 mx-auto mb-10" 
-          />
-          <h2 className="text-3xl font-light tracking-tight">
-            {view === 'signin' ? 'Sign in to Vista' : 'Create your account'}
+          <img src={darkMode ? "https://i.ibb.co/jvkPgrRH/Vista-1.png" : "https://i.ibb.co/M5KLbVnh/Vista-2.png"} alt="Vista Logo" className="h-10 mx-auto mb-10" />
+          <h2 className="text-3xl font-light tracking-tight text-neutral-900 dark:text-vista-text">
+            {view === 'signin' ? 'Sign in to Vista' : 'Create account'}
           </h2>
           <p className="text-sm text-neutral-500 dark:text-neutral-400 font-light">
             {view === 'signin' ? 'Access your workspace and manage production.' : 'Join the precision manufacturing platform.'}
           </p>
         </div>
 
-        {/* Form */}
         <form onSubmit={handleSubmit} className="space-y-6">
           {error && (
             <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-100 dark:border-red-900/30 text-red-600 dark:text-red-400 text-xs rounded-sm">
@@ -89,45 +147,20 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialView = 'signin', dark
           {view === 'signup' && (
             <div className="space-y-1 animate-fade-in">
               <label className="block text-[10px] font-bold text-neutral-400 dark:text-neutral-500 uppercase tracking-widest">Full Name</label>
-              <input 
-                type="text" 
-                required
-                value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
-                className="w-full border-b border-neutral-300 dark:border-neutral-700 py-3 text-sm text-neutral-900 dark:text-vista-text bg-transparent focus:border-neutral-900 dark:focus:border-vista-accent outline-none transition-colors"
-                placeholder="John Doe"
-              />
+              <input type="text" required value={fullName} onChange={(e) => setFullName(e.target.value)} className="w-full border-b border-neutral-300 dark:border-neutral-700 py-3 text-sm text-neutral-900 dark:text-vista-text bg-transparent focus:border-neutral-900 dark:focus:border-vista-accent outline-none transition-colors" placeholder="John Doe" />
             </div>
           )}
 
           <div className="space-y-1">
             <label className="block text-[10px] font-bold text-neutral-400 dark:text-neutral-500 uppercase tracking-widest">Email Address</label>
-            <input 
-              type="email" 
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full border-b border-neutral-300 dark:border-neutral-700 py-3 text-sm text-neutral-900 dark:text-vista-text bg-transparent focus:border-neutral-900 dark:focus:border-vista-accent outline-none transition-colors"
-              placeholder="name@company.com"
-            />
+            <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} className="w-full border-b border-neutral-300 dark:border-neutral-700 py-3 text-sm text-neutral-900 dark:text-vista-text bg-transparent focus:border-neutral-900 dark:focus:border-vista-accent outline-none transition-colors" placeholder="name@company.com" />
           </div>
 
           <div className="space-y-1">
             <label className="block text-[10px] font-bold text-neutral-400 dark:text-neutral-500 uppercase tracking-widest">Password</label>
             <div className="relative">
-              <input 
-                type={showPassword ? "text" : "password"} 
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full border-b border-neutral-300 dark:border-neutral-700 py-3 pr-10 text-sm text-neutral-900 dark:text-vista-text bg-transparent focus:border-neutral-900 dark:focus:border-vista-accent outline-none transition-colors"
-                placeholder="••••••••"
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-0 top-1/2 transform -translate-y-1/2 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 transition-colors focus:outline-none"
-              >
+              <input type={showPassword ? "text" : "password"} required value={password} onChange={(e) => setPassword(e.target.value)} className="w-full border-b border-neutral-300 dark:border-neutral-700 py-3 pr-10 text-sm text-neutral-900 dark:text-vista-text bg-transparent focus:border-neutral-900 dark:focus:border-vista-accent outline-none transition-colors" placeholder="••••••••" />
+              <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-0 top-1/2 transform -translate-y-1/2 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 transition-colors focus:outline-none">
                 {showPassword ? (
                   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
                 ) : (
@@ -137,24 +170,15 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialView = 'signin', dark
             </div>
           </div>
 
-          <button 
-            type="submit" 
-            disabled={loading}
-            className="w-full py-4 bg-neutral-900 dark:bg-vista-accent text-white dark:text-neutral-900 text-sm font-bold uppercase tracking-[0.2em] rounded-sm hover:bg-neutral-800 dark:hover:bg-yellow-400 transition-all shadow-xl disabled:opacity-50 disabled:cursor-not-allowed mt-8"
-          >
+          <button type="submit" disabled={loading} className="w-full py-4 bg-neutral-900 dark:bg-vista-accent text-white dark:text-neutral-900 text-sm font-bold uppercase tracking-[0.2em] rounded-sm hover:bg-neutral-800 dark:hover:bg-yellow-400 transition-all shadow-xl disabled:opacity-50 disabled:cursor-not-allowed mt-8">
             {loading ? 'Processing...' : (view === 'signin' ? 'Sign In' : 'Create Account')}
           </button>
         </form>
 
-        {/* Toggle Footer */}
         <div className="text-center">
           <p className="text-xs text-neutral-500 dark:text-neutral-400">
             {view === 'signin' ? "New to Vista? " : "Already have an account? "}
-            <button 
-              type="button"
-              onClick={() => { setError(null); setView(view === 'signin' ? 'signup' : 'signin'); }}
-              className="font-bold text-neutral-900 dark:text-vista-text hover:underline decoration-neutral-300 dark:decoration-neutral-700 underline-offset-4"
-            >
+            <button type="button" onClick={() => { setError(null); setView(view === 'signin' ? 'signup' : 'signin'); }} className="font-bold text-neutral-900 dark:text-vista-text hover:underline decoration-neutral-300 dark:decoration-neutral-700 underline-offset-4">
               {view === 'signin' ? 'Create Account' : 'Sign In'}
             </button>
           </p>
