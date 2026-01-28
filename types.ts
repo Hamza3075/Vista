@@ -98,7 +98,7 @@ export interface StoreContextType {
   addProduct: (prod: Product) => void;
   updateProduct: (id: string, updates: Partial<Product>) => void;
   removeProduct: (id: string) => void;
-  produceProduct: (productId: string, batchSize: number) => { success: boolean; message: string };
+  produceProduct: (productId: string, batchSize: number, packagingId?: string) => { success: boolean; message: string };
   recordSale: (productId: string, volumeL: number, pricePerUnit: number) => { success: boolean; message: string };
   updateSettings: (newSettings: Partial<AppSettings>) => void;
   generateInviteToken: () => Promise<string>;

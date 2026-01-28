@@ -17,21 +17,15 @@ const IconProduction = () => <svg className="w-5 h-5" fill="none" viewBox="0 0 2
 const IconInventory = () => <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>;
 const IconAnalytics = () => <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>;
 const IconSettings = () => <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>;
+const IconAccess = () => <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" /></svg>;
 
-const NavItem = ({ active, onClick, icon, label, badge }: { active: boolean; onClick: () => void; icon: React.ReactNode; label: string, badge?: string | number }) => (
+const NavItem = ({ active, onClick, icon, label }: { active: boolean; onClick: () => void; icon: React.ReactNode; label: string }) => (
   <button 
     onClick={onClick}
-    className={`w-full flex items-center justify-between px-4 py-3.5 text-sm font-medium transition-all rounded-sm ${active ? 'bg-neutral-900 text-white dark:bg-vista-accent dark:text-neutral-900 shadow-md scale-[1.02]' : 'text-neutral-500 hover:bg-neutral-50 dark:hover:bg-neutral-800 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-vista-text'}`}
+    className={`w-full flex items-center gap-3 px-4 py-4 text-xs font-bold uppercase tracking-widest transition-all rounded-sm ${active ? 'bg-neutral-900 text-white dark:bg-vista-accent dark:text-neutral-900 shadow-lg' : 'text-neutral-500 hover:bg-neutral-50 dark:hover:bg-neutral-800 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-vista-text'}`}
   >
-    <div className="flex items-center gap-3">
-      <span className={active ? 'opacity-100' : 'opacity-60'}>{icon}</span>
-      <span className="tracking-wide">{label}</span>
-    </div>
-    {badge && (
-      <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${active ? 'bg-white/20' : 'bg-neutral-100 dark:bg-neutral-800'}`}>
-        {badge}
-      </span>
-    )}
+    <span className={active ? 'opacity-100' : 'opacity-40'}>{icon}</span>
+    <span>{label}</span>
   </button>
 );
 
@@ -47,13 +41,19 @@ const AppContent = () => {
   );
 
   const canManageAccess = useMemo(() => {
-    if (user?.email === 'safwatkamel6000@gmail.com') return true;
-    const myAccess = userAccessList.find(a => a.userId === user?.id);
-    if (!myAccess) return false;
-    const myRole = roles.find(r => r.id === myAccess.roleId);
-    const myPermissions = myAccess.customPermissions?.access || myRole?.permissions.access;
-    return !!myPermissions?.read;
-  }, [user, userAccessList, roles]);
+    if (!user) return false;
+    // Primary authorized user is always the owner
+    if (isAuthorized) {
+       const myAccess = userAccessList.find(a => a.userId === user?.id);
+       // If no access record exists yet, assume owner (first user logic)
+       if (!myAccess && userAccessList.length === 0) return true;
+       // Check for owner role or access permissions
+       if (myAccess?.roleId === 'owner' || myAccess?.roleId === 'Owner') return true;
+       const myRole = roles.find(r => r.id === myAccess?.roleId || r.name === myAccess?.roleId);
+       return !!(myAccess?.customPermissions?.access?.read || myRole?.permissions.access.read);
+    }
+    return false;
+  }, [user, userAccessList, roles, isAuthorized]);
 
   useEffect(() => {
     if (darkMode) {
@@ -103,41 +103,28 @@ const AppContent = () => {
         <div className="fixed inset-0 bg-neutral-900/40 backdrop-blur-sm z-40 lg:hidden" onClick={() => setIsSidebarOpen(false)} />
       )}
 
-      <aside className={`fixed lg:static inset-y-0 left-0 w-64 border-r border-neutral-200 dark:border-neutral-800 flex flex-col shrink-0 bg-white dark:bg-vista-bg z-50 transition-transform duration-300 lg:translate-x-0 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
-        <div className="p-8">
-           <img src={darkMode ? "https://i.ibb.co/jvkPgrRH/Vista-1.png" : "https://i.ibb.co/M5KLbVnh/Vista-2.png"} alt="Vista Logo" className="h-6 w-auto mb-1" />
-          <p className="text-[10px] font-bold text-neutral-400 dark:text-neutral-600 uppercase tracking-[0.2em] mt-1 ml-0.5">Control Center</p>
+      <aside className={`fixed lg:static inset-y-0 left-0 w-64 border-r border-neutral-100 dark:border-neutral-800 flex flex-col shrink-0 bg-white dark:bg-vista-bg z-50 transition-transform duration-300 lg:translate-x-0 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+        <div className="p-10 text-center">
+           <img src={darkMode ? "https://i.ibb.co/jvkPgrRH/Vista-1.png" : "https://i.ibb.co/M5KLbVnh/Vista-2.png"} alt="Vista Logo" className="h-6 w-auto mx-auto" />
         </div>
 
-        <nav className="flex-1 px-4 space-y-1.5">
+        <nav className="flex-1 px-4 space-y-2 overflow-y-auto">
           <NavItem active={view === 'dashboard'} onClick={() => handleNavClick('dashboard')} icon={<IconDashboard />} label="Dashboard" />
           <NavItem active={view === 'production'} onClick={() => handleNavClick('production')} icon={<IconProduction />} label="Production" />
           <NavItem active={view === 'inventory'} onClick={() => handleNavClick('inventory')} icon={<IconInventory />} label="Inventory" />
           <NavItem active={view === 'analytics'} onClick={() => handleNavClick('analytics')} icon={<IconAnalytics />} label="Analytics" />
         </nav>
 
-        <div className="p-4 border-t border-neutral-100 dark:border-neutral-800 mt-auto flex items-center justify-between">
-          <button 
-            onClick={() => handleNavClick('settings')}
-            className={`p-2 rounded-sm transition-colors ${view === 'settings' ? 'text-vista-accent' : 'text-neutral-400 hover:text-neutral-900 dark:hover:text-vista-text'}`}
-            title="Settings"
-          >
-            <IconSettings />
-          </button>
+        <div className="px-4 py-6 border-t border-neutral-50 dark:border-neutral-800 mt-auto space-y-2">
           {canManageAccess && (
-            <button 
-              onClick={() => handleNavClick('access')}
-              className={`p-2 rounded-sm transition-colors ${view === 'access' ? 'text-vista-accent' : 'text-neutral-400 hover:text-neutral-900 dark:hover:text-vista-text'}`}
-              title="Access Management"
-            >
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
-            </button>
+            <NavItem active={view === 'access'} onClick={() => handleNavClick('access')} icon={<IconAccess />} label="Access" />
           )}
+          <NavItem active={view === 'settings'} onClick={() => handleNavClick('settings')} icon={<IconSettings />} label="Settings" />
         </div>
       </aside>
 
-      <main className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden relative bg-neutral-50/50 dark:bg-vista-bg/95 flex flex-col">
-        <div className="lg:hidden flex items-center justify-between p-4 border-b border-neutral-200 dark:border-neutral-800 bg-white dark:bg-vista-bg sticky top-0 z-30">
+      <main className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden relative bg-neutral-50/20 dark:bg-vista-bg flex flex-col">
+        <div className="lg:hidden flex items-center justify-between p-4 border-b border-neutral-100 dark:border-neutral-800 bg-white dark:bg-vista-bg sticky top-0 z-30">
           <button onClick={() => setIsSidebarOpen(true)} className="p-2 text-neutral-500 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-vista-text">
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" /></svg>
           </button>

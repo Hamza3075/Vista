@@ -256,7 +256,7 @@ export const AccessView: React.FC = () => {
                       label={resource}
                       permissions={current}
                       onChange={(updates) => handleUpdateUserPermissions(r, updates)}
-                      disabled={editingUser.email === 'safwatkamel6000@gmail.com'}
+                      disabled={editingUser.roleId === 'owner'}
                     />
                   );
                 })}
@@ -282,7 +282,7 @@ export const AccessView: React.FC = () => {
                 className="w-full border border-neutral-300 dark:border-neutral-700 rounded-sm p-3 text-sm bg-transparent outline-none focus:border-vista-accent text-neutral-900 dark:text-vista-text"
                 value={editingRole.name}
                 onChange={(e) => setEditingRole({ ...editingRole, name: e.target.value })}
-                disabled={editingRole.name === 'Owner'}
+                disabled={editingRole.id === 'owner'}
               />
             </div>
 
@@ -295,7 +295,7 @@ export const AccessView: React.FC = () => {
                       label={resource}
                       permissions={editingRole.permissions[r]}
                       onChange={(updates) => handleUpdateRolePermissions(r, updates)}
-                      disabled={editingRole.name === 'Owner'}
+                      disabled={editingRole.id === 'owner'}
                     />
                   );
                 })}

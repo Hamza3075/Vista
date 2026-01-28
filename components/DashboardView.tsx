@@ -2,11 +2,11 @@
 import React, { useMemo } from 'react';
 import { useStore } from '../store/StoreContext';
 import { useAuth } from '../context/AuthContext';
-import { KpiCard, DataTable, StatusBadge, PageHeader } from './Common';
+import { KpiCard, DataTable, PageHeader } from './Common';
 import { Product } from '../types';
 
 interface DashboardViewProps {
-  setView: (view: 'production' | 'inventory' | 'analytics' | 'settings') => void;
+  setView: (view: 'production' | 'inventory' | 'analytics' | 'settings' | 'access') => void;
 }
 
 export const DashboardView: React.FC<DashboardViewProps> = ({ setView }) => {
@@ -51,7 +51,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setView }) => {
     const packagingAlerts = packaging
       .filter(p => p.stock < (p.minStock ?? 100))
       .map(p => ({ 
-        type: 'Glass/Pack', 
+        type: 'Packaging', 
         name: p.name, 
         stock: p.stock, 
         unit: 'pcs',
@@ -64,90 +64,53 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setView }) => {
   const firstName = (user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'User').split(' ')[0];
 
   return (
-    <div className="p-4 md:p-8 max-w-6xl mx-auto space-y-8 animate-fade-in overflow-x-hidden">
+    <div className="p-4 md:p-10 max-w-6xl mx-auto space-y-12 animate-fade-in overflow-x-hidden">
       <PageHeader 
-        title={`Welcome back, ${firstName}`} 
-        subtitle="Vista Command Center: Real-time glass production and financial analysis." 
+        title={`Hello, ${firstName}`} 
+        subtitle="Your production summary and resource status." 
       />
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
-        <KpiCard label="Total Glasses" value={totalGlasses.toLocaleString()} variant="accent" />
-        <KpiCard label="Est. Profit" value={`EGP ${projectedProfit.toLocaleString()}`} />
-        <KpiCard label="Material Capital" value={`EGP ${inventoryCapital.toLocaleString()}`} />
-        <KpiCard label="Attention Required" value={alerts.length} variant={alerts.length > 0 ? 'danger' : 'default'} />
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 md:gap-8">
+        <KpiCard label="Ready Stock" value={totalGlasses.toLocaleString()} subValue="Units" variant="accent" />
+        <KpiCard label="Market Value" value={`EGP ${projectedRevenue.toLocaleString(undefined, { maximumFractionDigits: 0 })}`} />
+        <KpiCard label="Potential Profit" value={`EGP ${projectedProfit.toLocaleString(undefined, { maximumFractionDigits: 0 })}`} />
+        <KpiCard label="Current Capital" value={`EGP ${inventoryCapital.toLocaleString(undefined, { maximumFractionDigits: 0 })}`} />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <div className="lg:col-span-2 space-y-8 min-w-0">
-          <section>
-            <h3 className="text-base md:text-lg font-medium mb-4">Quick Actions</h3>
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-               {[
-                 { label: 'Start Production', icon: 'M19.428 15.428a2 2 0 00-1.022-.547l-2.384-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z', view: 'production', primary: true },
-                 { label: 'Inventory Assets', icon: 'M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4', view: 'inventory' },
-                 { label: 'Commercial Insights', icon: 'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z', view: 'analytics' }
-               ].map(action => (
-                 <button 
-                   key={action.view}
-                   onClick={() => setView(action.view as any)}
-                   className={`p-4 rounded-sm shadow-sm transition-all text-left group border ${action.primary ? 'bg-neutral-900 dark:bg-vista-accent text-white dark:text-neutral-900 border-transparent' : 'bg-white dark:bg-neutral-800 border-neutral-200 dark:border-neutral-700 hover:border-neutral-400'}`}
-                 >
-                    <div className="mb-2 opacity-80 group-hover:scale-110 transition-transform origin-left">
-                       <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d={action.icon} /></svg>
-                    </div>
-                    <div className="text-[10px] font-bold uppercase tracking-wider">{action.label}</div>
-                 </button>
-               ))}
-            </div>
-          </section>
-
-          <section className="min-w-0">
-            <div className="flex justify-between items-end mb-4">
-               <h3 className="text-base md:text-lg font-medium">Glass Inventory Summary</h3>
-               <p className="text-[10px] text-neutral-400 font-light uppercase tracking-widest">Active SKUs: {products.length}</p>
-            </div>
-            <DataTable<Product> 
-              data={products} 
-              columns={[
-                { header: 'Product', render: p => p.name, isSticky: true },
-                { header: 'Glasses', render: p => p.stock.toLocaleString(), align: 'right' },
-                { header: 'Unit Cost', render: p => `EGP ${(getFinancials(p).cost || 0).toFixed(2)}`, align: 'right', isHiddenMobile: true },
-                { header: 'Sale Price', render: p => `EGP ${(p.salePrice || 0).toFixed(0)}`, align: 'right' },
-                { header: 'Margin', align: 'right', render: p => {
-                    const { margin } = getFinancials(p);
-                    return <StatusBadge value={`${(margin || 0).toFixed(1)}%`} type={margin > 20 ? 'positive' : 'negative'} />
-                }}
-              ]}
-              emptyMessage="No products configured. Go to Production to create your first formula."
-            />
-          </section>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
+        <div className="lg:col-span-2 space-y-6">
+          <div className="flex justify-between items-end">
+            <h3 className="text-[10px] font-bold text-neutral-400 uppercase tracking-[0.2em]">Inventory Alerts</h3>
+            {alerts.length === 0 && <span className="text-[9px] text-emerald-500 font-bold uppercase tracking-widest">All levels healthy</span>}
+          </div>
+          <DataTable<{id: number, type: string, name: string, stock: number, unit: string, threshold: number}> 
+            data={alerts.slice(0, 5).map((a, i) => ({ ...a, id: i }))}
+            columns={[
+              { header: 'Type', render: a => <span className="text-[10px] uppercase font-bold text-neutral-400">{a.type}</span> },
+              { header: 'Item', render: a => a.name },
+              { header: 'Level', align: 'right', render: a => <span className="text-red-500 font-medium">{a.stock.toLocaleString()} {a.unit}</span> },
+              { header: 'Target', align: 'right', render: a => `${a.threshold.toLocaleString()} {a.unit}` }
+            ]}
+            emptyMessage="No resources are currently below target levels."
+          />
         </div>
 
-        <aside className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-sm p-6 h-fit min-w-0">
-           <h3 className="text-[11px] font-bold uppercase tracking-widest text-neutral-900 dark:text-vista-text mb-6 flex items-center gap-2">
-             <svg className="w-4 h-4 text-neutral-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>
-             Resource Alerts
-           </h3>
-           <div className="space-y-4">
-             {alerts.length === 0 ? (
-               <p className="text-sm text-neutral-500 text-center py-4">All levels healthy.</p>
-             ) : (
-               alerts.map((alert, idx) => (
-                 <div key={idx} className="flex items-start justify-between pb-4 border-b border-neutral-100 dark:border-neutral-800 last:border-0 last:pb-0 gap-2">
-                   <div className="min-w-0">
-                     <p className={`text-[9px] font-bold uppercase tracking-wider ${alert.type === 'Ingredient' ? 'text-red-600' : 'text-amber-600'}`}>{alert.type}</p>
-                     <p className="text-sm font-medium text-neutral-800 dark:text-neutral-200 truncate">{alert.name}</p>
-                     <p className="text-[9px] text-neutral-400 uppercase tracking-widest mt-0.5">Threshold: {alert.threshold} {alert.unit}</p>
-                   </div>
-                   <div className="text-right shrink-0">
-                      <p className={`text-sm font-mono font-bold ${alert.stock < (alert.threshold * 0.2) ? 'text-red-600' : 'text-neutral-500'}`}>{alert.stock.toLocaleString()} {alert.unit}</p>
-                      <button onClick={() => setView('inventory')} className="text-[9px] font-bold text-neutral-400 hover:text-neutral-900 dark:hover:text-vista-text underline mt-1">Order More</button>
-                   </div>
-                 </div>
-               ))
-             )}
-           </div>
-        </aside>
+        <div className="space-y-6">
+            <h3 className="text-[10px] font-bold text-neutral-400 uppercase tracking-[0.2em]">Actions</h3>
+            <div className="space-y-4">
+                <button onClick={() => setView('production')} className="w-full flex items-center justify-between p-5 bg-white dark:bg-neutral-900 border border-neutral-100 dark:border-neutral-800 rounded-sm hover:border-neutral-300 dark:hover:border-neutral-700 transition-all group text-left shadow-sm">
+                    <span className="text-xs font-bold text-neutral-900 dark:text-vista-text uppercase tracking-widest">Execute Production</span>
+                    <svg className="w-4 h-4 text-neutral-400 group-hover:text-vista-accent transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+                </button>
+                <button onClick={() => setView('inventory')} className="w-full flex items-center justify-between p-5 bg-white dark:bg-neutral-900 border border-neutral-100 dark:border-neutral-800 rounded-sm hover:border-neutral-300 dark:hover:border-neutral-700 transition-all group text-left shadow-sm">
+                    <span className="text-xs font-bold text-neutral-900 dark:text-vista-text uppercase tracking-widest">Manage Stock</span>
+                    <svg className="w-4 h-4 text-neutral-400 group-hover:text-vista-accent transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>
+                </button>
+            </div>
+            <div className="pt-4">
+                <p className="text-[10px] text-neutral-400 italic">"Efficiency is the result of precision."</p>
+            </div>
+        </div>
       </div>
     </div>
   );

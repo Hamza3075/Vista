@@ -54,17 +54,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialView = 'signin', dark
     }
   };
 
-  const handleBypass = async () => {
-    if (user?.email === 'safwatkamel6000@gmail.com') {
-      setLoading(true);
-      await setAuthorized(true);
-      setLoading(false);
-    }
-  };
-
   if (view === 'token') {
-    const isOwner = user?.email === 'safwatkamel6000@gmail.com';
-
     return (
       <div className="min-h-screen bg-white dark:bg-vista-bg text-neutral-900 dark:text-vista-text flex flex-col items-center justify-center p-6 animate-fade-in font-sans">
         <div className="w-full max-w-sm space-y-10">
@@ -103,15 +93,6 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialView = 'signin', dark
               {loading ? 'Verifying...' : 'Authorize Access'}
             </button>
           </form>
-
-          {isOwner && (
-            <div className="text-center space-y-4 pt-8 border-t border-neutral-100 dark:border-neutral-800 animate-fade-in">
-              <p className="text-[10px] text-neutral-400 uppercase tracking-widest font-bold">Administratoridentified</p>
-              <button onClick={handleBypass} disabled={loading} className="text-[11px] font-bold text-neutral-900 dark:text-vista-text hover:underline underline-offset-8 uppercase tracking-widest decoration-2 decoration-vista-accent">
-                {loading ? 'Processing...' : 'Bypass Access Gate →'}
-              </button>
-            </div>
-          )}
         </div>
       </div>
     );
@@ -126,7 +107,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialView = 'signin', dark
         Back
       </button>
 
-      <div className="w-full max-w-sm space-y-12">
+      <div className="w-full max-sm space-y-12">
         <div className="text-center space-y-4">
           <img src={darkMode ? "https://i.ibb.co/jvkPgrRH/Vista-1.png" : "https://i.ibb.co/M5KLbVnh/Vista-2.png"} alt="Vista Logo" className="h-10 mx-auto mb-10" />
           <h2 className="text-3xl font-light tracking-tight text-neutral-900 dark:text-vista-text">

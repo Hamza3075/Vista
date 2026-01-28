@@ -25,7 +25,15 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const [userAccessList, setUserAccessList] = useState<UserAccess[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // Authorization strictly follows user metadata
   const isAuthorized = !!user?.user_metadata?.is_authorized;
+
+  useEffect(() => {
+    // Synchronize user access if authorized but no record exists (Self-Correction for Owners)
+    if (user && isAuthorized && userAccessList.length === 0 && !loading) {
+       updateUserAccess(user.id, { email: user.email!, roleId: 'owner' });
+    }
+  }, [user, isAuthorized, userAccessList, loading]);
 
   useEffect(() => {
     if (!user) {
@@ -51,17 +59,42 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
           supabase.from('invite_tokens').select('*').order('created_at', { ascending: false })
         ]);
 
-        if (ingRes.data) setIngredients(ingRes.data.map(i => ({ id: i.id, name: i.name, stock: i.stock, unit: i.unit, costPerBaseUnit: i.cost_per_base_unit, minStock: i.min_stock })));
-        if (packRes.data) setPackaging(packRes.data.map(p => ({ id: p.id, name: p.name, capacity: p.capacity, stock: p.stock, cost: p.cost, min_stock: p.min_stock })));
-        if (prodRes.data) setProducts(prodRes.data.map(p => ({ 
-          id: p.id, 
-          name: p.name, 
-          category: p.category, 
-          packagingId: p.packaging_id, 
-          salePrice: p.sale_price, 
-          stock: p.stock, 
-          formula: p.product_formulas.map((f: any) => ({ ingredientId: f.ingredient_id, amount: f.amount })) 
-        })));
+        if (ingRes.data) {
+          setIngredients(ingRes.data.map(i => ({ 
+            id: i.id, 
+            name: i.name, 
+            stock: i.stock, 
+            unit: i.unit, 
+            costPerBaseUnit: i.cost_per_base_unit, 
+            minStock: i.min_stock 
+          })));
+        }
+
+        if (packRes.data) {
+          setPackaging(packRes.data.map(p => ({ 
+            id: p.id, 
+            name: p.name, 
+            capacity: p.capacity, 
+            stock: p.stock, 
+            cost: p.cost, 
+            minStock: p.min_stock 
+          })));
+        }
+
+        if (prodRes.data) {
+          setProducts(prodRes.data.map(p => ({ 
+            id: p.id, 
+            name: p.name, 
+            category: p.category, 
+            packagingId: p.packaging_id, 
+            salePrice: p.sale_price, 
+            stock: p.stock, 
+            formula: (p.product_formulas || []).map((f: any) => ({ 
+              ingredientId: f.ingredient_id, 
+              amount: f.amount 
+            })) 
+          })));
+        }
         
         if (tokenRes.data) {
           setTokens(tokenRes.data.map(t => ({
@@ -85,7 +118,14 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         }
 
         if (accessRes.data) {
-          setUserAccessList(accessRes.data.map(a => ({ id: a.user_id, userId: a.user_id, email: a.email, roleId: a.role_id, customPermissions: a.custom_permissions })));
+          const mappedAccessList = accessRes.data.map(a => ({ 
+            id: a.user_id, 
+            userId: a.user_id, 
+            email: a.email, 
+            roleId: a.role_id, 
+            customPermissions: a.custom_permissions 
+          }));
+          setUserAccessList(mappedAccessList);
         }
 
       } catch (err) {
@@ -132,7 +172,9 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     if (!user) return;
     const { error } = await supabase.auth.updateUser({ data: { is_authorized: val } });
     if (!error && val) {
-      await updateUserAccess(user.id, { email: user.email!, roleId: user.email === 'safwatkamel6000@gmail.com' ? 'owner' : 'guest' });
+      // First authorized user is treated as the Owner
+      const roleToAssign = userAccessList.length === 0 ? 'owner' : 'guest';
+      await updateUserAccess(user.id, { email: user.email!, roleId: roleToAssign });
     }
   };
 
@@ -195,11 +237,15 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     if (!error) setProducts(prev => prev.filter(p => p.id !== id));
   };
 
-  const produceProduct = (productId: string, batchSize: number): { success: boolean; message: string } => {
+  const produceProduct = (productId: string, batchSize: number, packagingId?: string): { success: boolean; message: string } => {
     const product = products.find((p) => p.id === productId);
     if (!product) return { success: false, message: 'Product not found' };
-    const selectedPackaging = packaging.find(p => p.id === product.packagingId);
+    
+    const targetPackagingId = packagingId || product.packagingId;
+    const selectedPackaging = packaging.find(p => p.id === targetPackagingId);
+    
     if (!selectedPackaging) return { success: false, message: 'Packaging definition missing' };
+    
     for (const item of product.formula) {
       const ing = ingredients.find((i) => i.id === item.ingredientId);
       if (!ing) return { success: false, message: `Ingredient not found` };
@@ -215,18 +261,21 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       const formulaItem = product.formula.find(f => f.ingredientId === ing.id);
       if (formulaItem) {
           const newStock = ing.stock - (formulaItem.amount * batchSize);
-          supabase.from('ingredients').update({ stock: newStock }).eq('id', ing.id).then();
+          supabase.from('ingredients').update({ stock: newStock }).eq('id', ing.id).then(() => {});
           return { ...ing, stock: newStock };
       }
       return ing;
     }));
+    
     const newPackStock = selectedPackaging.stock - unitsToProduce;
-    supabase.from('packaging').update({ stock: newPackStock }).eq('id', selectedPackaging.id).then();
+    supabase.from('packaging').update({ stock: newPackStock }).eq('id', selectedPackaging.id).then(() => {});
     setPackaging(prev => prev.map(p => p.id === selectedPackaging.id ? { ...p, stock: newPackStock } : p));
+    
     const newProdStock = product.stock + unitsToProduce;
-    supabase.from('products').update({ stock: newProdStock }).eq('id', productId).then();
+    supabase.from('products').update({ stock: newProdStock }).eq('id', productId).then(() => {});
     setProducts(prev => prev.map(p => p.id === productId ? { ...p, stock: newProdStock } : p));
-    return { success: true, message: `Produced ${unitsToProduce} glasses.` };
+    
+    return { success: true, message: `Produced ${unitsToProduce} units.` };
   };
 
   const recordSale = (productId: string, volumeL: number, pricePerUnit: number): { success: boolean; message: string } => {
@@ -237,9 +286,9 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     const unitsToDeduct = Math.ceil((volumeL * 1000) / pack.capacity);
     if (product.stock < unitsToDeduct) return { success: false, message: `Insufficient inventory.` };
     const newStock = product.stock - unitsToDeduct;
-    supabase.from('products').update({ stock: newStock }).eq('id', productId).then();
+    supabase.from('products').update({ stock: newStock }).eq('id', productId).then(() => {});
     setProducts(prev => prev.map(p => p.id === productId ? { ...p, stock: newStock } : p));
-    return { success: true, message: `Invoice recorded.` };
+    return { success: true, message: `Sale recorded.` };
   };
 
   const updateSettings = (newSettings: Partial<AppSettings>) => {
