@@ -1,8 +1,8 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState } from 'react';
 import { useStore } from '../store/StoreContext';
 import { Packaging } from '../types';
-import { CustomSelect, PageHeader, ModalBase } from './Common';
+import { PageHeader, ModalBase, ProgressBar, StatusBadge } from './Common';
 
 export const PackagingView: React.FC = () => {
   const { packaging, addPackaging, updatePackaging } = useStore();
@@ -39,112 +39,97 @@ export const PackagingView: React.FC = () => {
   };
 
   return (
-    <div className="p-4 md:p-8 max-w-6xl mx-auto space-y-8 animate-fade-in">
-      <PageHeader 
-        title="Packaging" 
-        subtitle="Inventory management for bottles and containers"
-        actions={
-          <button 
-            onClick={() => setShowAdd(true)}
-            className="w-full sm:w-auto px-6 py-2.5 bg-neutral-900 dark:bg-vista-accent text-white dark:text-neutral-900 rounded-sm font-medium hover:bg-neutral-800 transition-all text-[10px] md:text-xs tracking-wide uppercase shadow-lg"
-          >
-            + Add Bottle Size
-          </button>
-        }
-      />
+    <div className="space-y-8 animate-fade-in">
+      <div className="flex justify-between items-center bg-white dark:bg-neutral-900 p-4 rounded-sm border border-neutral-100 dark:border-neutral-800">
+        <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest px-2">{packaging.length} SKU Definitions Active</p>
+        <button 
+          onClick={() => setShowAdd(true)}
+          className="px-6 py-2 bg-neutral-900 dark:bg-vista-accent text-white dark:text-neutral-900 rounded-sm font-bold text-[10px] uppercase tracking-widest shadow-lg active:scale-95 transition-all"
+        >
+          + Create SKU
+        </button>
+      </div>
 
-      {packaging.length > 0 ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
-          {packaging.map((pack) => (
-            <div key={pack.id} className="bg-white dark:bg-neutral-900 p-6 md:p-8 rounded-sm border border-neutral-200 dark:border-neutral-800 flex flex-col hover:shadow-lg transition-all group">
-              <div className="flex justify-between items-start mb-4 md:mb-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {packaging.map((pack) => {
+          const health = Math.min(100, (pack.stock / (pack.minStock || 100)) * 100);
+          return (
+            <div key={pack.id} className="bg-white dark:bg-neutral-900 p-6 rounded-sm border border-neutral-100 dark:border-neutral-800 flex flex-col group hover:border-neutral-300 dark:hover:border-neutral-700 transition-all">
+              <div className="flex justify-between items-start mb-6">
                 <div>
-                  <h3 className="font-medium text-lg text-neutral-900 dark:text-vista-text">{pack.name}</h3>
-                  <p className="text-xs text-neutral-500 font-light mt-1">{pack.capacity} ml capacity</p>
+                  <h3 className="text-sm font-semibold text-neutral-900 dark:text-vista-text group-hover:text-vista-accent transition-colors">{pack.name}</h3>
+                  <p className="text-[10px] text-neutral-400 uppercase font-bold tracking-widest mt-0.5">{pack.capacity}ml Volume</p>
                 </div>
-                <div className="flex flex-col items-end gap-1">
-                  <span className="px-2 md:px-3 py-1 bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 text-[10px] font-bold rounded-full border border-neutral-200 dark:border-neutral-700">
-                    EGP {(pack.cost || 0).toFixed(2)}
-                  </span>
-                  {pack.minStock && (
-                    <span className="text-[9px] text-vista-accent font-bold opacity-70">
-                      Alert @ {pack.minStock}
-                    </span>
-                  )}
+                <div className="text-right">
+                  <p className="text-xs font-mono font-bold">EGP {pack.cost.toFixed(2)}</p>
+                  <p className="text-[8px] text-neutral-400 font-bold uppercase">Unit Cost</p>
                 </div>
               </div>
               
-              <div className="mt-auto pt-4 md:pt-6 border-t border-neutral-100 dark:border-neutral-800 space-y-4">
-                <div>
-                  <p className="text-[9px] text-neutral-400 font-bold uppercase tracking-widest mb-1">Stock Level</p>
-                  <p className="text-2xl md:text-3xl font-light text-neutral-900 dark:text-vista-text">{pack.stock.toLocaleString()}</p>
+              <div className="mt-auto space-y-4">
+                <div className="flex justify-between items-end">
+                  <p className="text-[9px] text-neutral-400 font-bold uppercase">On Hand</p>
+                  <span className={`text-xs font-mono ${health < 30 ? 'text-red-500 font-bold' : ''}`}>{pack.stock.toLocaleString()} pcs</span>
                 </div>
+                <ProgressBar progress={health} color={health < 30 ? 'bg-red-500' : 'bg-vista-accent'} />
                 
-                <div className="grid grid-cols-1 gap-2 md:gap-3">
-                   <button 
-                      onClick={() => setBuyPackId(pack.id)}
-                      className="w-full px-2 py-2 border border-neutral-300 dark:border-neutral-700 rounded-sm text-[9px] md:text-xs font-bold uppercase tracking-wide hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors"
-                  >
-                      Buy Empty Stock
-                  </button>
+                <div className="pt-4 flex justify-between gap-2 border-t border-neutral-50 dark:border-neutral-800/50">
+                  <button onClick={() => setBuyPackId(pack.id)} className="flex-1 px-4 py-2 border border-neutral-100 dark:border-neutral-800 rounded-sm text-[9px] font-bold uppercase hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors">Adjust</button>
+                  <button onClick={() => setBuyPackId(pack.id)} className="flex-1 px-4 py-2 bg-neutral-50 dark:bg-neutral-800 rounded-sm text-[9px] font-bold uppercase hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors">Restock</button>
                 </div>
               </div>
             </div>
-          ))}
-        </div>
-      ) : (
-        <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 p-20 rounded-sm text-center">
-            <p className="text-sm text-neutral-400 dark:text-neutral-600 italic mb-4">No packaging defined</p>
-            <button 
-              onClick={() => setShowAdd(true)}
-              className="text-xs font-bold uppercase tracking-widest text-neutral-900 dark:text-vista-accent hover:underline decoration-2 underline-offset-4"
-            >
-              Add Bottle Size &rarr;
-            </button>
-        </div>
-      )}
+          );
+        })}
+        {packaging.length === 0 && (
+          <div className="col-span-3 py-20 text-center border border-dashed border-neutral-100 dark:border-neutral-800">
+            <p className="text-sm text-neutral-400 font-light italic">No storage SKU definitions found.</p>
+          </div>
+        )}
+      </div>
 
-      <ModalBase isOpen={showAdd} onClose={() => setShowAdd(false)} title="New Bottle Definition" footer={
+      <ModalBase isOpen={showAdd} onClose={() => setShowAdd(false)} title="Create Container SKU" footer={
         <>
-          <button onClick={() => setShowAdd(false)} className="px-4 py-2 text-neutral-500 text-xs font-medium uppercase">Cancel</button>
-          <button onClick={handleAdd} className="px-6 py-2 bg-neutral-900 dark:bg-vista-accent text-white dark:text-neutral-900 text-xs font-bold uppercase rounded-sm shadow hover:bg-neutral-800 transition-all">Add Definition</button>
+          <button onClick={() => setShowAdd(false)} className="px-6 py-2.5 text-neutral-400 text-[10px] font-bold uppercase tracking-widest">Cancel</button>
+          <button onClick={handleAdd} className="px-10 py-2.5 bg-neutral-900 dark:bg-vista-accent text-white dark:text-neutral-900 text-[10px] font-bold uppercase tracking-widest">Lock SKU</button>
         </>
       }>
-        <div className="space-y-4">
+        <div className="space-y-6">
           <div>
-              <label className="block text-[10px] font-bold text-neutral-400 uppercase mb-1">Description</label>
-              <input type="text" className="w-full border border-neutral-300 dark:border-neutral-700 rounded-sm p-2 text-sm bg-white dark:bg-vista-bg text-neutral-900 dark:text-vista-text outline-none focus:border-neutral-500" placeholder="e.g. Amber Glass Bottle" value={newName} onChange={e => setNewName(e.target.value)} />
+              <label className="block text-[10px] font-bold text-neutral-400 uppercase tracking-widest mb-1.5">SKU Name</label>
+              <input type="text" className="w-full border border-neutral-200 dark:border-neutral-800 rounded-sm p-3 text-sm bg-transparent outline-none focus:border-vista-accent transition-colors" placeholder="e.g. 100ml Matte Glass Jar" value={newName} onChange={e => setNewName(e.target.value)} />
           </div>
           <div className="grid grid-cols-2 gap-4">
               <div>
-                  <label className="block text-[10px] font-bold text-neutral-400 uppercase mb-1">Capacity (ml)</label>
-                  <input type="number" className="w-full border border-neutral-300 dark:border-neutral-700 rounded-sm p-2 text-sm bg-white dark:bg-vista-bg text-neutral-900 dark:text-vista-text outline-none" placeholder="250" value={newCapacity} onChange={e => setNewCapacity(e.target.value)} />
+                  <label className="block text-[10px] font-bold text-neutral-400 uppercase tracking-widest mb-1.5">Capacity (ml)</label>
+                  <input type="number" className="w-full border border-neutral-200 dark:border-neutral-800 rounded-sm p-3 text-sm bg-transparent outline-none focus:border-vista-accent" placeholder="100" value={newCapacity} onChange={e => setNewCapacity(e.target.value)} />
               </div>
               <div>
-                  <label className="block text-[10px] font-bold text-neutral-400 uppercase mb-1">Unit Cost (EGP)</label>
-                  <input type="number" className="w-full border border-neutral-300 dark:border-neutral-700 rounded-sm p-2 text-sm bg-white dark:bg-vista-bg text-neutral-900 dark:text-vista-text outline-none" placeholder="1.50" value={newCost} onChange={e => setNewCost(e.target.value)} />
+                  <label className="block text-[10px] font-bold text-neutral-400 uppercase tracking-widest mb-1.5">Cost / Piece</label>
+                  <input type="number" className="w-full border border-neutral-200 dark:border-neutral-800 rounded-sm p-3 text-sm bg-transparent outline-none focus:border-vista-accent" placeholder="0.00" value={newCost} onChange={e => setNewCost(e.target.value)} />
               </div>
           </div>
           <div>
-              <label className="block text-[10px] font-bold text-vista-accent uppercase mb-1">Min Stock Alert (pcs)</label>
-              <input type="number" className="w-full border-vista-accent/30 focus:border-vista-accent rounded-sm p-2 text-sm bg-white dark:bg-vista-bg text-neutral-900 dark:text-vista-text outline-none" placeholder="Default: 100" value={newMinStock} onChange={e => setNewMinStock(e.target.value)} />
+              <label className="block text-[10px] font-bold text-neutral-400 uppercase tracking-widest mb-1.5">Safety Threshold (pcs)</label>
+              <input type="number" className="w-full border border-neutral-200 dark:border-neutral-800 rounded-sm p-3 text-sm bg-transparent outline-none focus:border-vista-accent" placeholder="Default: 100" value={newMinStock} onChange={e => setNewMinStock(e.target.value)} />
           </div>
         </div>
       </ModalBase>
 
       {buyPackId && (
-        <ModalBase isOpen={!!buyPackId} onClose={() => setBuyPackId(null)} title="Buy New Stock" maxWidth="max-w-[400px]" footer={
+        <ModalBase isOpen={!!buyPackId} onClose={() => setBuyPackId(null)} title="Inventory Adjustment" maxWidth="max-w-[360px]" footer={
           <>
-            <button onClick={() => setBuyPackId(null)} className="text-xs font-bold uppercase text-neutral-400 hover:text-neutral-900">Cancel</button>
-            <button onClick={() => handleBuy(buyPackId)} className="bg-neutral-900 dark:bg-vista-accent text-white dark:text-neutral-900 px-8 py-2 rounded-sm text-xs font-bold uppercase shadow hover:bg-neutral-800 transition-all">Confirm</button>
+            <button onClick={() => setBuyPackId(null)} className="px-6 py-2.5 text-neutral-400 text-[10px] font-bold uppercase tracking-widest">Cancel</button>
+            <button onClick={() => handleBuy(buyPackId)} className="bg-neutral-900 dark:bg-vista-accent text-white dark:text-neutral-900 px-8 py-2.5 rounded-sm text-[10px] font-bold uppercase tracking-widest shadow-lg">Apply</button>
           </>
         }>
-          <div className="space-y-1">
-            <label className="block text-[10px] font-bold text-neutral-400 uppercase">Quantity (pcs)</label>
+          <div className="space-y-4">
+            <label className="block text-[10px] font-bold text-neutral-400 uppercase tracking-widest">Quantity Adjustment</label>
             <input 
-              type="number" autoFocus className="w-full border-b-2 border-neutral-200 dark:border-neutral-700 py-2 text-3xl font-light text-neutral-900 dark:text-vista-text bg-transparent outline-none focus:border-neutral-900 dark:focus:border-vista-accent"
+              type="number" autoFocus className="w-full border-b-2 border-neutral-200 dark:border-neutral-800 py-4 text-4xl font-light bg-transparent outline-none focus:border-vista-accent transition-colors"
               placeholder="0" value={buyAmount === 0 ? '' : buyAmount} onChange={e => setBuyAmount(parseInt(e.target.value) || 0)}
             />
+            <p className="text-[10px] text-neutral-400 italic">Positive adds stock, negative removes it.</p>
           </div>
         </ModalBase>
       )}

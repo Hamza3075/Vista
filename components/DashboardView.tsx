@@ -2,7 +2,7 @@
 import React, { useMemo } from 'react';
 import { useStore } from '../store/StoreContext';
 import { useAuth } from '../context/AuthContext';
-import { KpiCard, DataTable, PageHeader } from './Common';
+import { KpiCard, PageHeader, StatusBadge, ProgressBar } from './Common';
 import { Product } from '../types';
 
 interface DashboardViewProps {
@@ -62,53 +62,91 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setView }) => {
   }, [ingredients, packaging]);
 
   const firstName = (user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'User').split(' ')[0];
+  const timeGreeting = useMemo(() => {
+    const hour = new Date().getHours();
+    if (hour < 12) return 'Good Morning';
+    if (hour < 18) return 'Good Afternoon';
+    return 'Good Evening';
+  }, []);
+
+  const overallHealth = useMemo(() => {
+    const totalItems = ingredients.length + packaging.length;
+    if (totalItems === 0) return 100;
+    return ((totalItems - alerts.length) / totalItems) * 100;
+  }, [ingredients, packaging, alerts]);
 
   return (
-    <div className="p-4 md:p-10 max-w-6xl mx-auto space-y-12 animate-fade-in overflow-x-hidden">
-      <PageHeader 
-        title={`Hello, ${firstName}`} 
-        subtitle="Your production summary and resource status." 
-      />
-
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 md:gap-8">
-        <KpiCard label="Ready Stock" value={totalGlasses.toLocaleString()} subValue="Units" variant="accent" />
-        <KpiCard label="Market Value" value={`EGP ${projectedRevenue.toLocaleString(undefined, { maximumFractionDigits: 0 })}`} />
-        <KpiCard label="Potential Profit" value={`EGP ${projectedProfit.toLocaleString(undefined, { maximumFractionDigits: 0 })}`} />
-        <KpiCard label="Current Capital" value={`EGP ${inventoryCapital.toLocaleString(undefined, { maximumFractionDigits: 0 })}`} />
+    <div className="p-8 max-w-7xl mx-auto space-y-12 animate-fade-in pb-24">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+        <div>
+          <h1 className="text-3xl font-light tracking-tight text-neutral-900 dark:text-vista-text">{timeGreeting}, {firstName}</h1>
+          <p className="text-sm text-neutral-400 font-light mt-1">Operational status of your production pipeline.</p>
+        </div>
+        <div className="flex items-center gap-4 bg-white dark:bg-neutral-900 px-6 py-3 rounded-sm border border-neutral-100 dark:border-neutral-800">
+          <div className="space-y-1">
+            <p className="text-[9px] font-bold uppercase tracking-widest text-neutral-400">Pipeline Health</p>
+            <ProgressBar progress={overallHealth} color={overallHealth > 80 ? 'bg-emerald-500' : 'bg-vista-accent'} />
+          </div>
+          <span className="text-xl font-light ml-4">{Math.round(overallHealth)}%</span>
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
-        <div className="lg:col-span-2 space-y-6">
-          <div className="flex justify-between items-end">
-            <h3 className="text-[10px] font-bold text-neutral-400 uppercase tracking-[0.2em]">Inventory Alerts</h3>
-            {alerts.length === 0 && <span className="text-[9px] text-emerald-500 font-bold uppercase tracking-widest">All levels healthy</span>}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+        <KpiCard label="Inventory Count" value={totalGlasses.toLocaleString()} subValue="Units" variant="accent" trend={{ value: '12%', positive: true }} />
+        <KpiCard label="Market Valuation" value={`EGP ${projectedRevenue.toLocaleString(undefined, { maximumFractionDigits: 0 })}`} />
+        <KpiCard label="Estimated Gross" value={`EGP ${projectedProfit.toLocaleString(undefined, { maximumFractionDigits: 0 })}`} />
+        <KpiCard label="Active Capital" value={`EGP ${inventoryCapital.toLocaleString(undefined, { maximumFractionDigits: 0 })}`} variant="ghost" />
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-12">
+        <div className="lg:col-span-8 space-y-6">
+          <div className="flex justify-between items-center border-b border-neutral-50 dark:border-neutral-800 pb-3">
+            <h3 className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest">Resource Watchlist</h3>
+            <StatusBadge value={`${alerts.length} Items Low`} type={alerts.length > 0 ? 'warning' : 'positive'} />
           </div>
-          <DataTable<{id: number, type: string, name: string, stock: number, unit: string, threshold: number}> 
-            data={alerts.slice(0, 5).map((a, i) => ({ ...a, id: i }))}
-            columns={[
-              { header: 'Type', render: a => <span className="text-[10px] uppercase font-bold text-neutral-400">{a.type}</span> },
-              { header: 'Item', render: a => a.name },
-              { header: 'Level', align: 'right', render: a => <span className="text-red-500 font-medium">{a.stock.toLocaleString()} {a.unit}</span> },
-              { header: 'Target', align: 'right', render: a => `${a.threshold.toLocaleString()} {a.unit}` }
-            ]}
-            emptyMessage="No resources are currently below target levels."
-          />
+          
+          <div className="divide-y divide-neutral-50 dark:divide-neutral-800/50">
+            {alerts.length > 0 ? alerts.slice(0, 6).map((alert, i) => (
+              <div key={i} className="flex items-center justify-between py-4 group hover:bg-neutral-50/10 transition-all px-2 rounded-sm">
+                <div className="flex items-center gap-4">
+                  <div className={`w-2 h-2 rounded-full ${alert.stock === 0 ? 'bg-red-500' : 'bg-amber-400'}`} />
+                  <div>
+                    <p className="text-sm font-medium text-neutral-900 dark:text-vista-text">{alert.name}</p>
+                    <p className="text-[10px] text-neutral-400 uppercase tracking-widest">{alert.type}</p>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <p className="text-xs font-mono">{alert.stock.toFixed(1)} / {alert.threshold} {alert.unit}</p>
+                  <div className="w-24 mt-1.5 ml-auto">
+                    <ProgressBar progress={(alert.stock / alert.threshold) * 100} color={alert.stock === 0 ? 'bg-red-500' : 'bg-amber-400'} />
+                  </div>
+                </div>
+              </div>
+            )) : (
+              <div className="py-12 text-center border border-dashed border-neutral-100 dark:border-neutral-800">
+                <p className="text-sm text-neutral-400 font-light italic">All resources are optimally stocked.</p>
+              </div>
+            )}
+          </div>
         </div>
 
-        <div className="space-y-6">
-            <h3 className="text-[10px] font-bold text-neutral-400 uppercase tracking-[0.2em]">Actions</h3>
-            <div className="space-y-4">
-                <button onClick={() => setView('production')} className="w-full flex items-center justify-between p-5 bg-white dark:bg-neutral-900 border border-neutral-100 dark:border-neutral-800 rounded-sm hover:border-neutral-300 dark:hover:border-neutral-700 transition-all group text-left shadow-sm">
-                    <span className="text-xs font-bold text-neutral-900 dark:text-vista-text uppercase tracking-widest">Execute Production</span>
-                    <svg className="w-4 h-4 text-neutral-400 group-hover:text-vista-accent transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+        <div className="lg:col-span-4 space-y-4">
+            <h3 className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest mb-4">Quick Transitions</h3>
+            <div className="space-y-3">
+                <button onClick={() => setView('production')} className="w-full group flex items-center justify-between p-6 bg-neutral-900 dark:bg-vista-accent text-white dark:text-neutral-900 rounded-sm transition-all hover:scale-[1.01] active:scale-[0.99]">
+                    <span className="text-xs font-bold uppercase tracking-[0.2em]">New Production Run</span>
+                    <svg className="w-4 h-4 transition-transform group-hover:translate-x-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" /></svg>
                 </button>
-                <button onClick={() => setView('inventory')} className="w-full flex items-center justify-between p-5 bg-white dark:bg-neutral-900 border border-neutral-100 dark:border-neutral-800 rounded-sm hover:border-neutral-300 dark:hover:border-neutral-700 transition-all group text-left shadow-sm">
-                    <span className="text-xs font-bold text-neutral-900 dark:text-vista-text uppercase tracking-widest">Manage Stock</span>
-                    <svg className="w-4 h-4 text-neutral-400 group-hover:text-vista-accent transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>
+                
+                <button onClick={() => setView('inventory')} className="w-full group flex items-center justify-between p-5 bg-white dark:bg-neutral-900 border border-neutral-100 dark:border-neutral-800 rounded-sm hover:border-neutral-400 transition-all">
+                    <span className="text-[10px] font-bold text-neutral-400 uppercase tracking-[0.2em] group-hover:text-neutral-900 dark:group-hover:text-vista-text">Manage Catalog</span>
+                    <svg className="w-4 h-4 text-neutral-300" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" /></svg>
                 </button>
-            </div>
-            <div className="pt-4">
-                <p className="text-[10px] text-neutral-400 italic">"Efficiency is the result of precision."</p>
+
+                <button onClick={() => setView('analytics')} className="w-full group flex items-center justify-between p-5 bg-white dark:bg-neutral-900 border border-neutral-100 dark:border-neutral-800 rounded-sm hover:border-neutral-400 transition-all">
+                    <span className="text-[10px] font-bold text-neutral-400 uppercase tracking-[0.2em] group-hover:text-neutral-900 dark:group-hover:text-vista-text">Commercial View</span>
+                    <svg className="w-4 h-4 text-neutral-300" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
+                </button>
             </div>
         </div>
       </div>
