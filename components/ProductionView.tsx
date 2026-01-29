@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { useStore } from '../store/StoreContext';
-import { Product, ProductCategory, FormulaItem } from '../types';
+import { Product, ProductCategory, FormulaItem, FormulaDraft } from '../types';
 import { CustomSelect, SearchableSelect, PageHeader, ModalBase, StatusBadge, ProgressBar, Alert } from './Common';
 
 interface AddProductFormProps {
@@ -35,7 +35,7 @@ const ProduceModal: React.FC<{ onClose: () => void; initialProductId?: string }>
     const batchSizeL = (qty * pack.capacity) / 1000;
     const shortages = selectedProduct.formula.map(item => {
       const ing = ingredients.find(i => i.id === item.ingredientId);
-      const needed = item.amount * batchSizeL;
+      const needed = (item.percentage / 100) * batchSizeL * 1000;
       return {
         name: ing?.name || 'Unknown Ingredient',
         needed,
@@ -184,34 +184,56 @@ const ProduceModal: React.FC<{ onClose: () => void; initialProductId?: string }>
 };
 
 const AddProductForm: React.FC<AddProductFormProps> = ({ category, onClose }) => {
-  const { ingredients, packaging, addProduct } = useStore();
-  const [name, setName] = useState('');
-  const [selectedPackId, setSelectedPackId] = useState(packaging[0]?.id || '');
-  const [price, setPrice] = useState('');
-  const [formula, setFormula] = useState<FormulaItem[]>([]);
+  const { ingredients, packaging, addProduct, formulaDraft, setFormulaDraft, addLog } = useStore();
+  
+  // Local state initialized from draft if category matches
+  const [name, setName] = useState(formulaDraft?.category === category ? formulaDraft.name : '');
+  const [selectedPackId, setSelectedPackId] = useState(formulaDraft?.category === category ? formulaDraft.packagingId : (packaging[0]?.id || ''));
+  const [price, setPrice] = useState(formulaDraft?.category === category ? formulaDraft.price : '');
+  const [formula, setFormula] = useState<FormulaItem[]>(formulaDraft?.category === category ? formulaDraft.formula : []);
+  
   const [ingId, setIngId] = useState('');
-  const [amount, setAmount] = useState('');
+  const [percentage, setPercentage] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Sync with global draft on every change
+  useEffect(() => {
+    setFormulaDraft({
+      name,
+      price,
+      formula,
+      packagingId: selectedPackId,
+      category
+    });
+  }, [name, price, formula, selectedPackId, category, setFormulaDraft]);
+
+  const totalPercentage = useMemo(() => formula.reduce((acc, f) => acc + f.percentage, 0), [formula]);
+
   const handleAddIngredient = () => {
-    if (!ingId || !amount) return;
-    setFormula(prev => [...prev, { ingredientId: ingId, amount: parseFloat(amount) }]);
-    setAmount('');
+    if (!ingId || !percentage) return;
+    const p = parseFloat(percentage);
+    if (totalPercentage + p > 100.001) {
+      setError("Total composition cannot exceed 100%.");
+      return;
+    }
+    setFormula(prev => [...prev, { ingredientId: ingId, percentage: p }]);
+    setPercentage('');
     setIngId(''); 
+    setError(null);
   };
 
-  const calculateCostPerL = () => {
+  const calculateLiquidCostPerL = () => {
     return formula.reduce((acc, item) => {
       const ing = ingredients.find(i => i.id === item.ingredientId);
-      return acc + (ing ? ing.costPerBaseUnit * item.amount : 0);
+      return acc + (ing ? (item.percentage / 100) * (ing.costPerBaseUnit * 1000) : 0);
     }, 0);
   };
 
   const selectedPack = packaging.find(p => p.id === selectedPackId);
-  const rawCostPerL = calculateCostPerL();
+  const liquidCostPerL = calculateLiquidCostPerL();
   const volumeRatio = selectedPack ? selectedPack.capacity / 1000 : 0;
-  const unitLiquidCost = rawCostPerL * volumeRatio;
+  const unitLiquidCost = liquidCostPerL * volumeRatio;
   const unitPackCost = selectedPack ? selectedPack.cost : 0;
   const totalUnitCost = unitLiquidCost + unitPackCost;
   const salePriceVal = parseFloat(price) || 0;
@@ -234,6 +256,7 @@ const AddProductForm: React.FC<AddProductFormProps> = ({ category, onClose }) =>
     try {
       const res = await addProduct(newProduct);
       if (res.success) {
+        setFormulaDraft(null); // Clear draft on success
         onClose();
       } else {
         setError(res.message);
@@ -245,16 +268,34 @@ const AddProductForm: React.FC<AddProductFormProps> = ({ category, onClose }) =>
     }
   };
 
+  const handleManualDraftSave = () => {
+    addLog('info', 'Workspace', `Draft formula "${name || 'Untitled'}" saved for later.`);
+    onClose();
+  };
+
+  const handleDiscard = () => {
+    setFormulaDraft(null);
+    onClose();
+  };
+
   return (
     <ModalBase isOpen={true} onClose={onClose} title={`Define ${category} Formula`} maxWidth="max-w-[700px]" isLoading={isSaving} footer={
       <>
-        <button onClick={onClose} disabled={isSaving} className="px-6 py-2.5 text-neutral-400 text-[10px] font-bold uppercase tracking-widest">Cancel</button>
+        <div className="flex-1 flex gap-2">
+           <button onClick={handleDiscard} className="px-4 py-2 text-red-500 text-[10px] font-bold uppercase tracking-widest hover:bg-red-50 dark:hover:bg-red-950/20 rounded-sm">Discard Draft</button>
+        </div>
+        <button onClick={handleManualDraftSave} disabled={isSaving} className="px-6 py-2.5 text-neutral-400 text-[10px] font-bold uppercase tracking-widest hover:text-neutral-900 dark:hover:text-vista-text">Save Draft & Exit</button>
         <button onClick={handleSave} disabled={isSaving || !name || formula.length === 0} className="px-10 py-2.5 bg-neutral-900 dark:bg-vista-accent text-white dark:text-neutral-900 rounded-sm shadow-2xl hover:bg-neutral-800 transition-all text-[10px] font-bold uppercase tracking-[0.2em] disabled:opacity-50">
           {isSaving ? 'Locking Formula...' : 'Confirm Formula'}
         </button>
       </>
     }>
       <div className="space-y-8">
+        <div className="flex items-center gap-3 p-3 bg-neutral-50 dark:bg-neutral-800/30 border border-neutral-100 dark:border-neutral-800 rounded-sm">
+           <div className="w-2 h-2 rounded-full bg-vista-accent animate-pulse" />
+           <span className="text-[10px] font-bold uppercase tracking-widest text-neutral-500">Draft Auto-Saving Active</span>
+        </div>
+
         {error && <Alert type="error" message={error} onClose={() => setError(null)} />}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
           <div className="space-y-1.5">
@@ -277,16 +318,19 @@ const AddProductForm: React.FC<AddProductFormProps> = ({ category, onClose }) =>
 
         <div className="border-t border-neutral-100 dark:border-neutral-800 pt-8">
           <div className="flex justify-between items-center mb-6">
-            <h3 className="text-[10px] font-bold text-neutral-900 dark:text-vista-text uppercase tracking-[0.2em]">Formula Itemization</h3>
-            <span className="text-[9px] text-neutral-400 uppercase font-bold tracking-widest">Values in g / ml</span>
+            <h3 className="text-[10px] font-bold text-neutral-900 dark:text-vista-text uppercase tracking-[0.2em]">Formula Composition (%)</h3>
+            <div className="flex items-center gap-3">
+              <span className="text-[9px] text-neutral-400 uppercase font-bold tracking-widest">Cumulative: {totalPercentage.toFixed(1)}%</span>
+              <StatusBadge value={totalPercentage >= 99.9 ? 'Complete' : 'Partial'} type={totalPercentage >= 99.9 ? 'positive' : 'warning'} />
+            </div>
           </div>
           
           <div className="flex flex-col sm:flex-row gap-3 mb-6 items-stretch">
             <div className="flex-1">
-              <SearchableSelect options={ingredients.map(i => ({ value: i.id, label: i.name, subLabel: i.unit }))} value={ingId} onChange={setIngId} placeholder="Add ingredient..." />
+              <SearchableSelect options={ingredients.map(i => ({ value: i.id, label: i.name, subLabel: `${i.unit} stock` }))} value={ingId} onChange={setIngId} placeholder="Add ingredient..." />
             </div>
             <div className="flex gap-3">
-              <input type="number" className="flex-1 sm:w-28 border border-neutral-200 dark:border-neutral-800 rounded-sm p-3 text-sm text-neutral-900 dark:text-vista-text bg-transparent outline-none focus:border-vista-accent" placeholder="Qty" value={amount} onChange={e => setAmount(e.target.value)} />
+              <input type="number" className="flex-1 sm:w-28 border border-neutral-200 dark:border-neutral-800 rounded-sm p-3 text-sm text-neutral-900 dark:text-vista-text bg-transparent outline-none focus:border-vista-accent" placeholder="%" value={percentage} onChange={e => setPercentage(e.target.value)} />
               <button onClick={handleAddIngredient} className="px-6 bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-colors rounded-sm font-bold text-neutral-600 dark:text-neutral-300 text-[10px] uppercase tracking-widest">Add</button>
             </div>
           </div>
@@ -295,10 +339,10 @@ const AddProductForm: React.FC<AddProductFormProps> = ({ category, onClose }) =>
             {formula.map((f, idx) => {
               const ing = ingredients.find(i => i.id === f.ingredientId);
               return (
-                <div key={idx} className="flex justify-between items-center p-3 bg-neutral-50 dark:bg-neutral-900 border border-neutral-100 dark:border-neutral-800 rounded-sm animate-fade-in">
+                <div key={idx} className="flex justify-between items-center p-3 bg-neutral-50 dark:bg-neutral-800/10 border border-neutral-100 dark:border-neutral-800 rounded-sm animate-fade-in">
                   <span className="text-xs font-medium text-neutral-700 dark:text-neutral-300">{ing?.name}</span>
                   <div className="flex items-center gap-4">
-                    <span className="text-[11px] font-mono text-neutral-500">{f.amount} {ing?.unit === 'kg' ? 'g' : 'ml'}</span>
+                    <span className="text-[11px] font-mono text-neutral-500">{f.percentage.toFixed(2)} %</span>
                     <button onClick={() => setFormula(prev => prev.filter((_, i) => i !== idx))} className="text-neutral-400 hover:text-red-500 transition-colors">
                       <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                     </button>
@@ -310,7 +354,7 @@ const AddProductForm: React.FC<AddProductFormProps> = ({ category, onClose }) =>
           
           <div className="grid grid-cols-2 gap-4">
             <div className="bg-neutral-50 dark:bg-neutral-900 p-6 rounded-sm border border-neutral-100 dark:border-neutral-800">
-               <p className="text-[9px] font-bold text-neutral-400 uppercase tracking-widest mb-1">Calculated Cost</p>
+               <p className="text-[9px] font-bold text-neutral-400 uppercase tracking-widest mb-1">Unit Cost (Liquid + Pack)</p>
                <p className="text-2xl font-light text-neutral-900 dark:text-vista-text">EGP {(totalUnitCost || 0).toFixed(2)}</p>
             </div>
             <div className={`p-6 rounded-sm border transition-colors ${projectedMargin > 30 ? 'bg-emerald-500/5 border-emerald-500/20' : projectedMargin > 0 ? 'bg-amber-500/5 border-amber-500/20' : 'bg-red-500/5 border-red-500/20'}`}>
@@ -325,7 +369,7 @@ const AddProductForm: React.FC<AddProductFormProps> = ({ category, onClose }) =>
 };
 
 export const ProductionView: React.FC = () => {
-  const { products, packaging, ingredients } = useStore();
+  const { products, packaging, ingredients, formulaDraft } = useStore();
   const [activeTab, setActiveTab] = useState<'all' | ProductCategory>(ProductCategory.SKIN_CARE);
   const [isAdding, setIsAdding] = useState(false);
   const [isProducing, setIsProducing] = useState(false);
@@ -342,7 +386,7 @@ export const ProductionView: React.FC = () => {
     const volumeRatio = pack.capacity / 1000;
     const ingredientCostPerL = product.formula.reduce((acc, item) => {
         const ing = ingredients.find(i => i.id === item.ingredientId);
-        return acc + (ing ? ing.costPerBaseUnit * item.amount : 0);
+        return acc + (ing ? (item.percentage / 100) * (ing.costPerBaseUnit * 1000) : 0);
     }, 0);
     const cost = (ingredientCostPerL * volumeRatio) + pack.cost;
     const margin = (product.salePrice || 0) > 0 ? (((product.salePrice || 0) - cost) / (product.salePrice || 1)) * 100 : 0;
@@ -377,7 +421,15 @@ export const ProductionView: React.FC = () => {
       </div>
       
       {activeTab !== 'all' && (
-        <div className="flex justify-end">
+        <div className="flex justify-between items-center">
+           {formulaDraft && formulaDraft.category === activeTab && (
+              <div className="flex items-center gap-3 animate-fade-in">
+                 <div className="w-1.5 h-1.5 rounded-full bg-vista-accent animate-pulse" />
+                 <span className="text-[9px] font-bold uppercase tracking-widest text-neutral-400">Unsaved Work Detected: "{formulaDraft.name || 'New Formula'}"</span>
+                 <button onClick={() => setIsAdding(true)} className="text-[9px] font-bold uppercase text-vista-accent underline underline-offset-4">Resume Editing</button>
+              </div>
+           )}
+           <div className="flex-1" />
            <button onClick={() => setIsAdding(true)} className="flex items-center gap-2 px-6 py-2 border border-neutral-200 dark:border-neutral-800 text-neutral-500 dark:text-neutral-400 rounded-sm hover:bg-neutral-50 dark:hover:bg-neutral-900/50 hover:border-neutral-400 transition-all text-[10px] font-bold uppercase tracking-widest">+ Define New SKU</button>
         </div>
       )}

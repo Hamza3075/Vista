@@ -1,5 +1,4 @@
 
-
 import React, { useState, useMemo } from 'react';
 import { useStore } from '../store/StoreContext';
 import { ProductCategory, Product } from '../types';
@@ -31,7 +30,8 @@ export const MarketingView: React.FC = () => {
       const volumeRatio = pack.capacity / 1000;
       const ingredientCostPerL = product.formula.reduce((acc, item) => {
           const ing = ingredients.find(i => i.id === item.ingredientId);
-          return acc + (ing ? ing.costPerBaseUnit * item.amount : 0);
+          // percentage based cost derivation
+          return acc + (ing ? (item.percentage / 100) * (ing.costPerBaseUnit * 1000) : 0);
       }, 0);
       return (ingredientCostPerL * volumeRatio) + pack.cost;
   };
@@ -57,7 +57,6 @@ export const MarketingView: React.FC = () => {
     setInvoiceItems(prev => prev.map(item => {
       if (item.id === id) {
         const newItem = { ...item, ...updates };
-        // If product changed, pre-fill price
         if (updates.productId) {
           const p = products.find(prod => prod.id === updates.productId);
           if (p) newItem.price = (p.salePrice || 0).toString();
@@ -77,7 +76,6 @@ export const MarketingView: React.FC = () => {
       let allSuccess = true;
       let messages: string[] = [];
 
-      // Process strictly sequentially to ensure order and avoid race conditions on inventory check
       for (const item of invoiceItems) {
         const result = await recordSale(item.productId, parseFloat(item.volume), parseFloat(item.price));
         if (!result.success) {
@@ -163,13 +161,12 @@ export const MarketingView: React.FC = () => {
           }},
           { header: 'Actions', align: 'center', render: p => (
             <button onClick={() => setDeleteModal({ isOpen: true, id: p.id, name: p.name })} className="text-neutral-400 hover:text-red-600 transition-colors p-1">
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1-1v3M4 7h16" /></svg>
             </button>
           )}
         ]}
       />
 
-      {/* Invoice Modal */}
       <ModalBase isOpen={showInvoice} onClose={() => setShowInvoice(false)} title="Record Sales Invoice" maxWidth="max-w-4xl" footer={
           <>
             <button onClick={() => setShowInvoice(false)} className="px-4 py-2 text-neutral-500 text-xs font-medium uppercase">Cancel</button>

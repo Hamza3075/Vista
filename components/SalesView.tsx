@@ -13,7 +13,8 @@ export const SalesView: React.FC = () => {
     const volumeRatio = pack.capacity / 1000;
     const ingredientCostPerL = product.formula.reduce((acc, item) => {
         const ing = ingredients.find(i => i.id === item.ingredientId);
-        return acc + (ing ? ing.costPerBaseUnit * item.amount : 0);
+        // cost contribution = (percentage share) * (cost of 1L of material)
+        return acc + (ing ? (item.percentage / 100) * (ing.costPerBaseUnit * 1000) : 0);
     }, 0);
     const cost = (ingredientCostPerL * volumeRatio) + pack.cost;
     const profit = (product.salePrice || 0) - cost;

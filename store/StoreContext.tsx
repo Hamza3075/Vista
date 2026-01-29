@@ -1,6 +1,6 @@
 
 import React, { createContext, useContext, useState, ReactNode, useEffect, useCallback } from 'react';
-import { Ingredient, Packaging, Product, StoreContextType, InviteToken, AppSettings, Role, UserAccess, Permissions, ApiResponse, LogEntry } from '../types';
+import { Ingredient, Packaging, Product, StoreContextType, InviteToken, AppSettings, Role, UserAccess, Permissions, ApiResponse, LogEntry, FormulaDraft, NavigationState } from '../types';
 import { supabase, checkApiHealth } from '../lib/supabaseClient';
 import { useAuth } from '../context/AuthContext';
 
@@ -26,6 +26,18 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [isDbConnected, setIsDbConnected] = useState(true);
+
+  // Temporary State
+  const [formulaDraft, setFormulaDraft] = useState<FormulaDraft | null>(null);
+  const [navigation, setNavigation] = useState<NavigationState>({
+    inventoryTab: 'ingredients',
+    insightsTab: 'performance',
+    activeMainView: 'dashboard'
+  });
+
+  const updateNavigation = (updates: Partial<NavigationState>) => {
+    setNavigation(prev => ({ ...prev, ...updates }));
+  };
 
   const isAuthorized = !!(
     user?.user_metadata?.is_authorized || 
@@ -79,7 +91,6 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       
       if (accessError) {
         if (accessError.code === 'PGRST116') {
-            // User entry not found in database yet, but session is valid
             addLog('info', 'Auth', 'User profile not yet provisioned in registry.');
             return;
         }
@@ -101,7 +112,6 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
 
   useEffect(() => {
     if (user && isAuthorized && userAccessList.length === 0 && !loading) {
-       // Provision initial owner role if none exists and user is marked authorized
        updateUserAccess(user.id, { email: user.email!, roleId: 'owner' });
     }
   }, [user, isAuthorized, userAccessList, loading]);
@@ -151,7 +161,10 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         if (prodRes.data) setProducts(prodRes.data.map(p => ({ 
           id: p.id, name: p.name, category: p.category, packagingId: p.packaging_id, 
           salePrice: Number(p.sale_price), stock: Number(p.stock), 
-          formula: (p.product_formulas || []).map((f: any) => ({ ingredientId: f.ingredient_id, amount: Number(f.amount) })) 
+          formula: (p.product_formulas || []).map((f: any) => ({ 
+            ingredientId: f.ingredient_id, 
+            percentage: Number(f.amount) 
+          })) 
         })));
 
         if (roleRes.data && roleRes.data.length > 0) {
@@ -212,22 +225,13 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const addIngredient = async (ing: Ingredient): Promise<ApiResponse> => {
     const authCheck = checkAuth();
     if (authCheck) return authCheck;
-    
     if (!(await verifyConnectivity())) return apiResponse(false, "Network Failure", 503);
-
-    addLog('info', 'Inventory', `Registering new material: ${ing.name}`);
     const { data, error } = await supabase.from('ingredients').insert([{ 
       name: ing.name, stock: Number(ing.stock), unit: ing.unit, cost_per_base_unit: Number(ing.costPerBaseUnit), 
       min_stock: Number(ing.minStock), user_id: user?.id 
     }]).select().single();
-    
-    if (error) {
-      addLog('error', 'Inventory', `Material registry failed: ${ing.name}`, error);
-      return apiResponse(false, error.message, 500);
-    }
-    
+    if (error) return apiResponse(false, error.message, 500);
     setIngredients(prev => [...prev, { ...ing, id: data.id }]);
-    addLog('info', 'Inventory', `Successfully registered: ${ing.name}`);
     return apiResponse(true, "Ingredient added");
   };
 
@@ -248,22 +252,13 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const addPackaging = async (pack: Packaging): Promise<ApiResponse> => {
     const authCheck = checkAuth();
     if (authCheck) return authCheck;
-
     if (!(await verifyConnectivity())) return apiResponse(false, "Network Failure", 503);
-
-    addLog('info', 'Inventory', `Registering packaging SKU: ${pack.name}`);
     const { data, error } = await supabase.from('packaging').insert([{ 
       name: pack.name, capacity: Number(pack.capacity), stock: Number(pack.stock), cost: Number(pack.cost), 
       min_stock: Number(pack.minStock), user_id: user?.id 
     }]).select().single();
-    
-    if (error) {
-      addLog('error', 'Inventory', `Packaging SKU registry failed: ${pack.name}`, error);
-      return apiResponse(false, error.message, 500);
-    }
-    
+    if (error) return apiResponse(false, error.message, 500);
     setPackaging(prev => [...prev, { ...pack, id: data.id }]);
-    addLog('info', 'Inventory', `Successfully registered packaging: ${pack.name}`);
     return apiResponse(true, "Packaging added");
   };
 
@@ -277,39 +272,23 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const addProduct = async (prod: Product): Promise<ApiResponse> => {
     const authCheck = checkAuth();
     if (authCheck) return authCheck;
-
     if (!(await verifyConnectivity())) return apiResponse(false, "Network Failure", 503);
-
-    addLog('info', 'Catalog', `Initiating product registry sequence: ${prod.name}`);
-
-    // Phase 1: Create Product Header
     const { data: pData, error: pError } = await supabase.from('products').insert([{ 
       name: prod.name, category: prod.category, packaging_id: prod.packagingId, sale_price: Number(prod.salePrice), 
       stock: Number(prod.stock), user_id: user?.id 
     }]).select().single();
-
-    if (pError) {
-      addLog('error', 'Catalog', `Phase 1 Failure: Header creation failed for ${prod.name}`, pError);
-      return apiResponse(false, `Registry Error: ${pError.message}`, 500);
-    }
-
-    // Phase 2: Map Formulas
+    if (pError) return apiResponse(false, `Registry Error: ${pError.message}`, 500);
     const fItems = prod.formula.map(f => ({ 
       product_id: pData.id, 
       ingredient_id: f.ingredientId, 
-      amount: Number(f.amount) 
+      amount: Number(f.percentage) 
     }));
-
     const { error: fError } = await supabase.from('product_formulas').insert(fItems);
-    
     if (fError) {
-      addLog('error', 'Catalog', `Phase 2 Failure: Formula mapping failed for ${prod.name}. Rollback initiated.`, fError);
       await supabase.from('products').delete().eq('id', pData.id);
-      return apiResponse(false, `Registry Error: ${fError.message}. Product registration aborted.`, 500);
+      return apiResponse(false, `Registry Error: ${fError.message}`, 500);
     }
-    
     setProducts(prev => [...prev, { ...prod, id: pData.id }]);
-    addLog('info', 'Catalog', `Product sequence complete: ${prod.name} registered.`);
     return apiResponse(true, "Product created");
   };
 
@@ -330,38 +309,27 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const produceProduct = async (productId: string, batchSize: number, packagingId?: string): Promise<ApiResponse> => {
     const authCheck = checkAuth();
     if (authCheck) return authCheck;
-
     if (!(await verifyConnectivity())) return apiResponse(false, "Connection Failure", 503);
-
     const product = products.find(p => p.id === productId);
     if (!product) return apiResponse(false, "Product not found");
     const pack = packaging.find(p => p.id === (packagingId || product.packagingId));
     if (!pack) return apiResponse(false, "Packaging not found");
-
     const units = Math.floor((batchSize * 1000) / Number(pack.capacity));
     if (units <= 0) return apiResponse(false, "Volume too low for 1 unit");
-
     try {
-      addLog('info', 'Production', `Starting production run: ${product.name} (Batch Size: ${batchSize}L)`);
       const updates = [];
       product.formula.forEach(f => {
         const ing = ingredients.find(i => i.id === f.ingredientId);
         if (ing) {
-          const newStock = Number(ing.stock) - (Number(f.amount) * batchSize);
-          updates.push(supabase.from('ingredients').update({ stock: newStock }).eq('id', ing.id));
+          const deduction = (f.percentage / 100) * batchSize * 1000;
+          updates.push(supabase.from('ingredients').update({ stock: Number(ing.stock) - deduction }).eq('id', ing.id));
         }
       });
       updates.push(supabase.from('packaging').update({ stock: Number(pack.stock) - units }).eq('id', pack.id));
       updates.push(supabase.from('products').update({ stock: Number(product.stock) + units }).eq('id', productId));
-      
-      const results = await Promise.all(updates);
-      const errors = results.filter(r => r.error);
-      if (errors.length > 0) throw new Error(errors[0].error?.message || "Concurrent update error");
-
-      addLog('info', 'Production', `Run successful: ${units} units added to stock.`);
+      await Promise.all(updates);
       return apiResponse(true, `Successfully produced ${units} units.`);
     } catch (err: any) {
-      addLog('error', 'Production', `Production run failure: ${product.name}`, err);
       return apiResponse(false, err.message, 500);
     }
   };
@@ -371,18 +339,10 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     if (!product) return apiResponse(false, "Product not found");
     const pack = packaging.find(p => p.id === product.packagingId);
     if (!pack) return apiResponse(false, "Packaging not found");
-
     const units = Math.ceil((volumeL * 1000) / Number(pack.capacity));
     if (product.stock < units) return apiResponse(false, "Insufficient stock");
-
-    addLog('info', 'Sales', `Recording sale for ${product.name}: ${units} units.`);
     const { error } = await supabase.from('products').update({ stock: Number(product.stock) - units }).eq('id', productId);
-    
-    if (error) {
-      addLog('error', 'Sales', `Sale record failed for ${product.name}`, error);
-      return apiResponse(false, error.message, 500);
-    }
-    
+    if (error) return apiResponse(false, error.message, 500);
     setProducts(prev => prev.map(p => p.id === productId ? { ...p, stock: Number(p.stock) - units } : p));
     return apiResponse(true, "Sale recorded");
   };
@@ -436,6 +396,7 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   return (
     <StoreContext.Provider value={{
       ingredients, packaging, products, settings, tokens, roles, userAccessList, isAuthorized, logs,
+      formulaDraft, setFormulaDraft, navigation, updateNavigation,
       addLog, addIngredient, updateIngredient, removeIngredient, addPackaging, updatePackaging,
       addProduct, updateProduct, removeProduct, produceProduct, recordSale, updateSettings,
       generateInviteToken, validateInviteToken, removeInviteToken, setAuthorized,

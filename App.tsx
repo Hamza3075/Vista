@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { StoreProvider } from './store/StoreContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { LandingPage } from './components/LandingPage';
@@ -12,7 +12,7 @@ import { DashboardView } from './components/DashboardView';
 import { AccessView } from './components/AccessView';
 import { useStore } from './store/StoreContext';
 
-const IconDashboard = () => <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" /></svg>;
+const IconDashboard = () => <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" /></svg>;
 const IconProduction = () => <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.384-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 00-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" /></svg>;
 const IconInventory = () => <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>;
 const IconInsights = () => <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>;
@@ -31,12 +31,11 @@ const NavItem = ({ active, onClick, icon, label }: { active: boolean; onClick: (
 
 const AppContent = () => {
   const { user, loading } = useAuth();
-  const { isAuthorized, userAccessList, roles } = useStore();
-  const [view, setView] = useState<'dashboard' | 'production' | 'inventory' | 'insights' | 'settings' | 'access'>('dashboard');
+  const { isAuthorized, userAccessList, roles, navigation, updateNavigation } = useStore();
   const [authView, setAuthView] = useState<'landing' | 'signin' | 'signup'>('landing');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   
-  const [darkMode, setDarkMode] = useState(() => 
+  const [darkMode, setDarkMode] = React.useState(() => 
     window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches
   );
 
@@ -77,20 +76,20 @@ const AppContent = () => {
     return <AuthPage initialView="token" darkMode={darkMode} onBack={() => setAuthView('landing')} />;
   }
 
-  const handleNavClick = (newView: typeof view) => {
-    setView(newView);
+  const handleNavClick = (newView: typeof navigation.activeMainView) => {
+    updateNavigation({ activeMainView: newView });
     setIsSidebarOpen(false);
   };
 
   const renderView = () => {
-    switch (view) {
-      case 'dashboard': return <DashboardView setView={(v) => setView(v === 'analytics' ? 'insights' : v)} />;
+    switch (navigation.activeMainView) {
+      case 'dashboard': return <DashboardView setView={(v) => updateNavigation({ activeMainView: v === 'analytics' ? 'insights' : v })} />;
       case 'production': return <ProductionView />;
       case 'inventory': return <InventoryView />;
       case 'insights': return <AnalyticsView />;
       case 'access': return <AccessView />;
       case 'settings': return <SettingsView darkMode={darkMode} setDarkMode={setDarkMode} />;
-      default: return <DashboardView setView={(v) => setView(v === 'analytics' ? 'insights' : v)} />;
+      default: return <DashboardView setView={(v) => updateNavigation({ activeMainView: v === 'analytics' ? 'insights' : v })} />;
     }
   };
 
@@ -106,17 +105,17 @@ const AppContent = () => {
         </div>
 
         <nav className="flex-1 px-4 space-y-2 overflow-y-auto">
-          <NavItem active={view === 'dashboard'} onClick={() => handleNavClick('dashboard')} icon={<IconDashboard />} label="Dashboard" />
-          <NavItem active={view === 'production'} onClick={() => handleNavClick('production')} icon={<IconProduction />} label="Production" />
-          <NavItem active={view === 'inventory'} onClick={() => handleNavClick('inventory')} icon={<IconInventory />} label="Inventory" />
-          <NavItem active={view === 'insights'} onClick={() => handleNavClick('insights')} icon={<IconInsights />} label="Insights" />
+          <NavItem active={navigation.activeMainView === 'dashboard'} onClick={() => handleNavClick('dashboard')} icon={<IconDashboard />} label="Dashboard" />
+          <NavItem active={navigation.activeMainView === 'production'} onClick={() => handleNavClick('production')} icon={<IconProduction />} label="Production" />
+          <NavItem active={navigation.activeMainView === 'inventory'} onClick={() => handleNavClick('inventory')} icon={<IconInventory />} label="Inventory" />
+          <NavItem active={navigation.activeMainView === 'insights'} onClick={() => handleNavClick('insights')} icon={<IconInsights />} label="Insights" />
         </nav>
 
         <div className="px-4 py-8 border-t border-neutral-50 dark:border-neutral-800 mt-auto space-y-2">
           {canManageAccess && (
-            <NavItem active={view === 'access'} onClick={() => handleNavClick('access')} icon={<IconAccess />} label="Access" />
+            <NavItem active={navigation.activeMainView === 'access'} onClick={() => handleNavClick('access')} icon={<IconAccess />} label="Access" />
           )}
-          <NavItem active={view === 'settings'} onClick={() => handleNavClick('settings')} icon={<IconSettings />} label="Settings" />
+          <NavItem active={navigation.activeMainView === 'settings'} onClick={() => handleNavClick('settings')} icon={<IconSettings />} label="Settings" />
         </div>
       </aside>
 

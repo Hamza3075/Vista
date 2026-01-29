@@ -1,11 +1,11 @@
 
-import React, { useState } from 'react';
+import React from 'react';
 import { IngredientsView } from './IngredientsView';
 import { PackagingView } from './PackagingView';
-import { PageHeader } from './Common';
+import { useStore } from '../store/StoreContext';
 
 export const InventoryView: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'ingredients' | 'packaging'>('ingredients');
+  const { navigation, updateNavigation } = useStore();
 
   return (
     <div className="min-h-full pb-20">
@@ -18,14 +18,14 @@ export const InventoryView: React.FC = () => {
           
           <div className="flex p-1 bg-neutral-100 dark:bg-neutral-900 rounded-sm">
             <button 
-              onClick={() => setActiveTab('ingredients')}
-              className={`px-8 py-2 text-[10px] font-bold uppercase tracking-widest transition-all rounded-sm ${activeTab === 'ingredients' ? 'bg-white dark:bg-neutral-800 text-neutral-900 dark:text-vista-accent shadow-sm' : 'text-neutral-400 hover:text-neutral-600'}`}
+              onClick={() => updateNavigation({ inventoryTab: 'ingredients' })}
+              className={`px-8 py-2 text-[10px] font-bold uppercase tracking-widest transition-all rounded-sm ${navigation.inventoryTab === 'ingredients' ? 'bg-white dark:bg-neutral-800 text-neutral-900 dark:text-vista-accent shadow-sm' : 'text-neutral-400 hover:text-neutral-600'}`}
             >
               Ingredients
             </button>
             <button 
-              onClick={() => setActiveTab('packaging')}
-              className={`px-8 py-2 text-[10px] font-bold uppercase tracking-widest transition-all rounded-sm ${activeTab === 'packaging' ? 'bg-white dark:bg-neutral-800 text-neutral-900 dark:text-vista-accent shadow-sm' : 'text-neutral-400 hover:text-neutral-600'}`}
+              onClick={() => updateNavigation({ inventoryTab: 'packaging' })}
+              className={`px-8 py-2 text-[10px] font-bold uppercase tracking-widest transition-all rounded-sm ${navigation.inventoryTab === 'packaging' ? 'bg-white dark:bg-neutral-800 text-neutral-900 dark:text-vista-accent shadow-sm' : 'text-neutral-400 hover:text-neutral-600'}`}
             >
               Packaging
             </button>
@@ -33,7 +33,7 @@ export const InventoryView: React.FC = () => {
         </div>
 
         <div className="animate-fade-in">
-          {activeTab === 'ingredients' ? <IngredientsView /> : <PackagingView />}
+          {navigation.inventoryTab === 'ingredients' ? <IngredientsView /> : <PackagingView />}
         </div>
       </div>
     </div>

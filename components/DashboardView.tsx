@@ -17,9 +17,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setView }) => {
     const pack = packaging.find(p => p.id === product.packagingId);
     if (!pack) return { cost: 0, profit: 0, margin: 0 };
     const volumeRatio = pack.capacity / 1000;
+    // Fix: FormulaItem uses 'percentage', not 'amount'. 
+    // Calculating cost contribution to 1L (1000ml) using percentage.
     const ingredientCostPerL = product.formula.reduce((acc, item) => {
         const ing = ingredients.find(i => i.id === item.ingredientId);
-        return acc + (ing ? ing.costPerBaseUnit * item.amount : 0);
+        return acc + (ing ? (item.percentage / 100) * (ing.costPerBaseUnit * 1000) : 0);
     }, 0);
     const cost = (ingredientCostPerL * volumeRatio) + pack.cost;
     const profit = (product.salePrice || 0) - cost;

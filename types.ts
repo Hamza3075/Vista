@@ -29,7 +29,7 @@ export interface Packaging {
 
 export interface FormulaItem {
   ingredientId: string;
-  amount: number; // amount per 1 unit (1000ml/1000g) of product
+  percentage: number; // percentage of total volume (0-100)
 }
 
 export enum ProductCategory {
@@ -45,6 +45,20 @@ export interface Product {
   packagingId: string;
   salePrice: number;
   stock: number; // Number of finished units (glasses)
+}
+
+export interface FormulaDraft {
+  name: string;
+  price: string;
+  formula: FormulaItem[];
+  packagingId: string;
+  category: ProductCategory | null;
+}
+
+export interface NavigationState {
+  inventoryTab: 'ingredients' | 'packaging';
+  insightsTab: 'performance' | 'marketing' | 'advisor';
+  activeMainView: 'dashboard' | 'production' | 'inventory' | 'insights' | 'settings' | 'access';
 }
 
 export interface AppSettings {
@@ -114,6 +128,12 @@ export interface StoreContextType {
   userAccessList: UserAccess[];
   isAuthorized: boolean;
   logs: LogEntry[];
+  // Draft & Navigation State
+  formulaDraft: FormulaDraft | null;
+  setFormulaDraft: (draft: FormulaDraft | null) => void;
+  navigation: NavigationState;
+  updateNavigation: (updates: Partial<NavigationState>) => void;
+  // Actions
   addLog: (level: LogEntry['level'], source: string, message: string, details?: any) => void;
   addIngredient: (ing: Ingredient) => Promise<ApiResponse>;
   updateIngredient: (id: string, updates: Partial<Ingredient>) => Promise<ApiResponse>;
