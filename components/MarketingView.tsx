@@ -1,4 +1,5 @@
 
+
 import React, { useState, useMemo } from 'react';
 import { useStore } from '../store/StoreContext';
 import { ProductCategory, Product } from '../types';
@@ -22,6 +23,7 @@ export const MarketingView: React.FC = () => {
     { id: '1', productId: '', volume: '', price: '' }
   ]);
   const [saleMessage, setSaleMessage] = useState<{ text: string, type: 'success' | 'error' } | null>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
 
   const getProductCost = (product: Product) => {
       const pack = packaging.find(p => p.id === product.packagingId);
@@ -66,21 +68,25 @@ export const MarketingView: React.FC = () => {
     }));
   };
 
-  const handleInvoice = () => {
+  const handleInvoice = async () => {
       const isValid = invoiceItems.every(item => item.productId && item.volume && item.price);
       if (!isValid) return;
 
+      setIsProcessing(true);
+      setSaleMessage(null);
       let allSuccess = true;
       let messages: string[] = [];
 
+      // Process strictly sequentially to ensure order and avoid race conditions on inventory check
       for (const item of invoiceItems) {
-        const result = recordSale(item.productId, parseFloat(item.volume), parseFloat(item.price));
+        const result = await recordSale(item.productId, parseFloat(item.volume), parseFloat(item.price));
         if (!result.success) {
           allSuccess = false;
           messages.push(`${products.find(p => p.id === item.productId)?.name}: ${result.message}`);
         }
       }
       
+      setIsProcessing(false);
       if (allSuccess) {
         setSaleMessage({ text: "Invoice recorded successfully for all items.", type: 'success' });
         setTimeout(() => {
@@ -167,7 +173,9 @@ export const MarketingView: React.FC = () => {
       <ModalBase isOpen={showInvoice} onClose={() => setShowInvoice(false)} title="Record Sales Invoice" maxWidth="max-w-4xl" footer={
           <>
             <button onClick={() => setShowInvoice(false)} className="px-4 py-2 text-neutral-500 text-xs font-medium uppercase">Cancel</button>
-            <button onClick={handleInvoice} disabled={!isFormValid} className="px-8 py-2 bg-neutral-900 dark:bg-vista-accent text-white dark:text-neutral-900 text-xs font-bold uppercase rounded-sm shadow-xl hover:bg-neutral-800 transition-all disabled:opacity-30">Record Sale</button>
+            <button onClick={handleInvoice} disabled={!isFormValid || isProcessing} className="px-8 py-2 bg-neutral-900 dark:bg-vista-accent text-white dark:text-neutral-900 text-xs font-bold uppercase rounded-sm shadow-xl hover:bg-neutral-800 transition-all disabled:opacity-30">
+              {isProcessing ? 'Processing...' : 'Record Sale'}
+            </button>
           </>
       }>
           <div className="space-y-4">

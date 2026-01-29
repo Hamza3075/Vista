@@ -9,6 +9,8 @@ export const IngredientsView: React.FC = () => {
   
   const [showAdd, setShowAdd] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   // New Ingredient State
   const [newIngName, setNewIngName] = useState('');
@@ -21,23 +23,55 @@ export const IngredientsView: React.FC = () => {
     return ingredients.filter(i => i.name.toLowerCase().includes(searchTerm.toLowerCase()));
   }, [ingredients, searchTerm]);
 
-  const handleAddIngredient = () => {
-    if (!newIngName || !newIngStock || !newIngPrice) return;
+  const handleAddIngredient = async () => {
+    setErrorMessage(null);
+    
+    // Explicit validation: allow '0' as a value, but reject empty strings
+    if (!newIngName.trim()) {
+      setErrorMessage("Material name is required.");
+      return;
+    }
+    if (newIngStock === '' || newIngPrice === '') {
+      setErrorMessage("Stock and Price fields are mandatory.");
+      return;
+    }
+
     const stockVal = parseFloat(newIngStock);
     const priceVal = parseFloat(newIngPrice);
     const minStockVal = parseFloat(newIngMinStock);
-    if (isNaN(stockVal) || isNaN(priceVal)) return;
 
+    if (isNaN(stockVal) || isNaN(priceVal)) {
+      setErrorMessage("Please enter valid numeric values.");
+      return;
+    }
+
+    setIsSubmitting(true);
     const isBulk = newIngUnit === 'kg' || newIngUnit === 'l';
-    addIngredient({
-      id: `ing-${Date.now()}`,
-      name: newIngName,
-      stock: isBulk ? stockVal * 1000 : stockVal,
-      unit: newIngUnit,
-      costPerBaseUnit: isBulk ? priceVal / 1000 : priceVal,
-      minStock: !isNaN(minStockVal) ? (isBulk ? minStockVal * 1000 : minStockVal) : undefined
-    });
-    setNewIngName(''); setNewIngStock(''); setNewIngPrice(''); setNewIngMinStock(''); setShowAdd(false);
+    
+    try {
+      const response = await addIngredient({
+        id: `ing-${Date.now()}`,
+        name: newIngName,
+        stock: isBulk ? stockVal * 1000 : stockVal,
+        unit: newIngUnit,
+        costPerBaseUnit: isBulk ? priceVal / 1000 : priceVal,
+        minStock: !isNaN(minStockVal) ? (isBulk ? minStockVal * 1000 : minStockVal) : undefined
+      });
+
+      if (response.success) {
+        setNewIngName(''); 
+        setNewIngStock(''); 
+        setNewIngPrice(''); 
+        setNewIngMinStock(''); 
+        setShowAdd(false);
+      } else {
+        setErrorMessage(response.message || "Failed to register material.");
+      }
+    } catch (err: any) {
+      setErrorMessage(err.message || "An unexpected error occurred.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const getStockStatus = (ing: Ingredient) => {
@@ -65,7 +99,7 @@ export const IngredientsView: React.FC = () => {
             <p className="text-sm font-semibold text-neutral-900 dark:text-vista-text">EGP {totalValue.toLocaleString(undefined, { maximumFractionDigits: 0 })}</p>
           </div>
           <button 
-            onClick={() => setShowAdd(true)} 
+            onClick={() => { setShowAdd(true); setErrorMessage(null); }} 
             className="px-6 py-2 bg-neutral-900 dark:bg-vista-accent text-white dark:text-neutral-900 font-bold rounded-sm text-[10px] uppercase tracking-widest shadow-lg active:scale-95 transition-all"
           >
             + Register
@@ -125,14 +159,29 @@ export const IngredientsView: React.FC = () => {
 
       <ModalBase isOpen={showAdd} onClose={() => setShowAdd(false)} title="New Resource Registry" footer={
         <>
-          <button onClick={() => setShowAdd(false)} className="px-6 py-2.5 text-neutral-400 text-[10px] font-bold uppercase tracking-widest">Cancel</button>
-          <button onClick={handleAddIngredient} className="px-10 py-2.5 bg-neutral-900 dark:bg-vista-accent text-white dark:text-neutral-900 text-[10px] font-bold uppercase tracking-widest">Confirm Entry</button>
+          <button onClick={() => setShowAdd(false)} disabled={isSubmitting} className="px-6 py-2.5 text-neutral-400 text-[10px] font-bold uppercase tracking-widest">Cancel</button>
+          <button 
+            onClick={handleAddIngredient} 
+            disabled={isSubmitting}
+            className="px-10 py-2.5 bg-neutral-900 dark:bg-vista-accent text-white dark:text-neutral-900 text-[10px] font-bold uppercase tracking-widest shadow-lg disabled:opacity-50 flex items-center gap-2"
+          >
+            {isSubmitting ? (
+              <div className="w-3 h-3 border-2 border-white/20 border-t-white dark:border-neutral-900/20 dark:border-t-neutral-900 rounded-full animate-spin" />
+            ) : null}
+            {isSubmitting ? 'Processing...' : 'Confirm Entry'}
+          </button>
         </>
       }>
         <div className="space-y-6">
+          {errorMessage && (
+            <div className="p-3 bg-red-50 dark:bg-red-900/10 border border-red-100 dark:border-red-900/30 text-red-600 dark:text-red-400 text-[10px] font-bold uppercase tracking-widest animate-shake">
+              {errorMessage}
+            </div>
+          )}
+
           <div>
             <label className="block text-[10px] font-bold text-neutral-400 uppercase tracking-widest mb-1.5">Material Name</label>
-            <input type="text" className="w-full border border-neutral-200 dark:border-neutral-800 rounded-sm p-3 text-sm bg-transparent focus:border-vista-accent outline-none" value={newIngName} onChange={(e) => setNewIngName(e.target.value)} placeholder="e.g. Lavender Essential Oil" />
+            <input type="text" className="w-full border border-neutral-200 dark:border-neutral-800 rounded-sm p-3 text-sm bg-transparent focus:border-vista-accent outline-none transition-colors" value={newIngName} onChange={(e) => setNewIngName(e.target.value)} placeholder="e.g. Lavender Essential Oil" />
           </div>
           
           <div className="grid grid-cols-2 gap-4">
@@ -142,18 +191,18 @@ export const IngredientsView: React.FC = () => {
             </div>
             <div>
               <label className="block text-[10px] font-bold text-neutral-400 uppercase tracking-widest mb-1.5">Stock</label>
-              <input type="number" className="w-full border border-neutral-200 dark:border-neutral-800 rounded-sm p-3 text-sm bg-transparent outline-none focus:border-vista-accent" value={newIngStock} onChange={(e) => setNewIngStock(e.target.value)} placeholder="0.00" />
+              <input type="number" className="w-full border border-neutral-200 dark:border-neutral-800 rounded-sm p-3 text-sm bg-transparent outline-none focus:border-vista-accent transition-colors" value={newIngStock} onChange={(e) => setNewIngStock(e.target.value)} placeholder="0.00" />
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-[10px] font-bold text-neutral-400 uppercase tracking-widest mb-1.5">Price / Unit</label>
-              <input type="number" className="w-full border border-neutral-200 dark:border-neutral-800 rounded-sm p-3 text-sm bg-transparent outline-none focus:border-vista-accent" value={newIngPrice} onChange={(e) => setNewIngPrice(e.target.value)} placeholder="EGP" />
+              <input type="number" className="w-full border border-neutral-200 dark:border-neutral-800 rounded-sm p-3 text-sm bg-transparent outline-none focus:border-vista-accent transition-colors" value={newIngPrice} onChange={(e) => setNewIngPrice(e.target.value)} placeholder="EGP" />
             </div>
             <div>
               <label className="block text-[10px] font-bold text-neutral-400 uppercase tracking-widest mb-1.5">Min Alert</label>
-              <input type="number" className="w-full border border-neutral-200 dark:border-neutral-800 rounded-sm p-3 text-sm bg-transparent outline-none focus:border-vista-accent" placeholder="Default 50" value={newIngMinStock} onChange={(e) => setNewIngMinStock(e.target.value)} />
+              <input type="number" className="w-full border border-neutral-200 dark:border-neutral-800 rounded-sm p-3 text-sm bg-transparent outline-none focus:border-vista-accent transition-colors" placeholder="Default 50" value={newIngMinStock} onChange={(e) => setNewIngMinStock(e.target.value)} />
             </div>
           </div>
         </div>

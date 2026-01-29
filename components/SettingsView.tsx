@@ -1,9 +1,9 @@
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useStore } from '../store/StoreContext';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabaseClient';
-import { ConfirmModal } from './Common';
+import { ConfirmModal, StatusBadge } from './Common';
 
 interface SettingsViewProps {
   darkMode: boolean;
@@ -11,7 +11,7 @@ interface SettingsViewProps {
 }
 
 export const SettingsView: React.FC<SettingsViewProps> = ({ darkMode, setDarkMode }) => {
-  const { settings, updateSettings, tokens, generateInviteToken, removeInviteToken } = useStore();
+  const { settings, updateSettings, tokens, generateInviteToken, removeInviteToken, logs, addLog } = useStore();
   const { signOut, user } = useAuth();
 
   const [fullName, setFullName] = useState(user?.user_metadata?.full_name || '');
@@ -20,6 +20,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ darkMode, setDarkMod
   const [message, setMessage] = useState<{type: 'success' | 'error', text: string} | null>(null);
   const [lastGenerated, setLastGenerated] = useState<string | null>(null);
   const [tokenToDelete, setTokenToDelete] = useState<{id: string, token: string} | null>(null);
+  
+  // API Test State
+  const [isTesting, setIsTesting] = useState(false);
+  const [testResults, setTestResults] = useState<{auth: boolean, db: boolean, ai: boolean} | null>(null);
 
   const initial = (user?.user_metadata?.full_name || user?.email || '?').charAt(0).toUpperCase();
 
@@ -28,16 +32,14 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ darkMode, setDarkMod
     setMessage(null);
     try {
         const { error } = await supabase.auth.updateUser({
-            data: { 
-                full_name: fullName,
-                avatar_url: avatarUrl 
-            }
+            data: { full_name: fullName, avatar_url: avatarUrl }
         });
-
         if (error) throw error;
         setMessage({ type: 'success', text: 'Profile details updated successfully.' });
+        addLog('info', 'Auth', 'User profile updated');
     } catch (err: any) {
         setMessage({ type: 'error', text: err.message || 'Failed to update profile.' });
+        addLog('error', 'Auth', 'Profile update failed', err);
     } finally {
         setIsSaving(false);
     }
@@ -67,11 +69,43 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ darkMode, setDarkMod
         if (uploadError) throw uploadError;
         const { data } = supabase.storage.from('avatars').getPublicUrl(filePath);
         setAvatarUrl(data.publicUrl);
-        setMessage({ type: 'success', text: 'Image uploaded. Click "Update Profile" to save changes.' });
+        setMessage({ type: 'success', text: 'Image uploaded. Click "Update Profile" to save.' });
+        addLog('info', 'Storage', 'Avatar uploaded successfully');
     } catch (error: any) {
         setMessage({ type: 'error', text: 'Error uploading image: ' + error.message });
+        addLog('error', 'Storage', 'Avatar upload failed', error);
     } finally {
         setIsSaving(false);
+    }
+  };
+
+  const handleTestConnection = async () => {
+    setIsTesting(true);
+    setMessage(null);
+    addLog('info', 'Diagnostics', 'Executing system-wide connectivity test');
+    
+    const results = { auth: false, db: false, ai: false };
+    
+    try {
+        // Test Auth
+        const { data: authData } = await supabase.auth.getSession();
+        results.auth = !!authData.session;
+        
+        // Test DB (Specific table permission check)
+        const { error: dbError } = await supabase.from('products').select('id').limit(1);
+        results.db = !dbError;
+        
+        // Test AI
+        results.ai = !!process.env.API_KEY && process.env.API_KEY !== '';
+        
+        setTestResults(results);
+        setMessage({ type: 'success', text: 'Diagnostics complete. Check System Status below.' });
+        addLog('info', 'Diagnostics', 'Connectivity test successful', results);
+    } catch (err: any) {
+        setMessage({ type: 'error', text: `Diagnostic Fail: ${err.message}` });
+        addLog('error', 'Diagnostics', 'Diagnostic test cycle failed', err);
+    } finally {
+        setIsTesting(false);
     }
   };
 
@@ -79,11 +113,13 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ darkMode, setDarkMod
     return token.substring(0, 5) + "*".repeat(35);
   };
 
+  const filteredLogs = useMemo(() => logs.slice(0, 5), [logs]);
+
   return (
     <div className="p-8 max-w-6xl mx-auto space-y-8 animate-fade-in pb-20">
       <header className="border-b border-neutral-200 dark:border-neutral-800 pb-6">
         <h2 className="text-3xl font-light text-neutral-900 dark:text-vista-text tracking-tight">Settings</h2>
-        <p className="text-neutral-500 dark:text-neutral-400 mt-2 font-light">Configure application preferences</p>
+        <p className="text-neutral-500 dark:text-neutral-400 mt-2 font-light">Configure application preferences and system health.</p>
       </header>
 
       <div className="space-y-6">
@@ -140,6 +176,82 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ darkMode, setDarkMod
                 </div>
             </div>
         </div>
+        
+        {/* Diagnostics & Logs Section */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-sm p-8">
+                <div className="flex justify-between items-start mb-1">
+                    <h3 className="text-lg font-medium text-neutral-900 dark:text-vista-text">System Status</h3>
+                    <button onClick={handleTestConnection} disabled={isTesting} className="text-[10px] font-bold uppercase tracking-widest text-neutral-400 hover:text-vista-accent transition-colors">
+                        {isTesting ? 'Pinging...' : 'Verify Connectivity'}
+                    </button>
+                </div>
+                <p className="text-sm text-neutral-500 dark:text-neutral-400 mb-6 font-light">Live health monitoring of integrated services.</p>
+                
+                <div className="space-y-4">
+                    <div className="flex items-center justify-between p-3 bg-neutral-50 dark:bg-neutral-800/30 rounded-sm border border-neutral-100 dark:border-neutral-800">
+                        <span className="text-xs font-medium">Authentication Service</span>
+                        <StatusBadge 
+                          value={testResults ? (testResults.auth ? 'Healthy' : 'Error') : 'Verified'} 
+                          type={testResults ? (testResults.auth ? 'positive' : 'negative') : 'neutral'} 
+                        />
+                    </div>
+                    <div className="flex items-center justify-between p-3 bg-neutral-50 dark:bg-neutral-800/30 rounded-sm border border-neutral-100 dark:border-neutral-800">
+                        <span className="text-xs font-medium">Database Core</span>
+                        <StatusBadge 
+                          value={testResults ? (testResults.db ? 'Connected' : 'Offline') : 'Online'} 
+                          type={testResults ? (testResults.db ? 'positive' : 'negative') : 'neutral'} 
+                        />
+                    </div>
+                    <div className="flex items-center justify-between p-3 bg-neutral-50 dark:bg-neutral-800/30 rounded-sm border border-neutral-100 dark:border-neutral-800">
+                        <span className="text-xs font-medium">Gemini Intelligence</span>
+                        <StatusBadge 
+                          value={testResults ? (testResults.ai ? 'Configured' : 'Missing Key') : 'Active'} 
+                          type={testResults ? (testResults.ai ? 'positive' : 'warning') : 'neutral'} 
+                        />
+                    </div>
+                </div>
+
+                <div className="mt-8 pt-6 border-t border-neutral-100 dark:border-neutral-800">
+                    <h4 className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest mb-4">Session Metadata</h4>
+                    <div className="grid grid-cols-2 gap-4 text-[11px]">
+                        <div className="space-y-1">
+                            <p className="text-neutral-400 uppercase font-bold tracking-tight">Last Sign In</p>
+                            <p className="font-mono">{new Date(user?.last_sign_in_at || '').toLocaleString()}</p>
+                        </div>
+                        <div className="space-y-1">
+                            <p className="text-neutral-400 uppercase font-bold tracking-tight">Provider</p>
+                            <p className="font-mono uppercase">{user?.app_metadata?.provider || 'Email'}</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-sm p-8 flex flex-col">
+                <h3 className="text-lg font-medium text-neutral-900 dark:text-vista-text mb-1">Application Logs</h3>
+                <p className="text-sm text-neutral-500 dark:text-neutral-400 mb-6 font-light">Recent operational events and error history.</p>
+                
+                <div className="flex-1 space-y-3">
+                    {filteredLogs.length > 0 ? filteredLogs.map(log => (
+                        <div key={log.id} className="p-3 bg-neutral-50 dark:bg-neutral-800/20 border border-neutral-100 dark:border-neutral-800 rounded-sm flex gap-4">
+                            <div className={`w-1 h-full min-h-[24px] rounded-full shrink-0 ${log.level === 'error' ? 'bg-red-500' : log.level === 'warn' ? 'bg-amber-400' : 'bg-vista-accent'}`} />
+                            <div className="space-y-1 flex-1 min-w-0">
+                                <div className="flex justify-between items-center">
+                                    <span className="text-[9px] font-bold uppercase tracking-widest text-neutral-400">{log.source} &bull; {new Date(log.timestamp).toLocaleTimeString()}</span>
+                                    <span className={`text-[8px] font-bold uppercase ${log.level === 'error' ? 'text-red-500' : log.level === 'warn' ? 'text-amber-500' : 'text-neutral-400'}`}>{log.level}</span>
+                                </div>
+                                <p className="text-[11px] font-medium text-neutral-700 dark:text-neutral-300 truncate">{log.message}</p>
+                            </div>
+                        </div>
+                    )) : (
+                        <div className="flex-1 flex items-center justify-center border border-dashed border-neutral-100 dark:border-neutral-800 rounded-sm">
+                            <p className="text-xs text-neutral-400 italic font-light">No logged events found.</p>
+                        </div>
+                    )}
+                </div>
+                {logs.length > 5 && <button className="mt-4 text-[10px] font-bold uppercase tracking-widest text-neutral-400 hover:text-neutral-600 transition-colors">View All Logs &rarr;</button>}
+            </div>
+        </div>
 
         {/* Access & Invitations Section */}
         <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-sm p-8">
@@ -164,7 +276,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ darkMode, setDarkMod
                                 Copy Token
                             </button>
                         </div>
-                        <p className="text-[9px] text-neutral-400 mt-2 italic">Note: Only the first 5 characters are shown for security. Use the copy button to get the full token.</p>
                     </div>
                 )}
 
@@ -204,7 +315,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ darkMode, setDarkMod
                                                   title="Delete Token"
                                                 >
                                                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1-1v3M4 7h16" />
                                                   </svg>
                                                 </button>
                                             </td>

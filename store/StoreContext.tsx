@@ -1,7 +1,7 @@
 
-import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
-import { Ingredient, Packaging, Product, StoreContextType, InviteToken, AppSettings, FormulaItem, Role, UserAccess, Permissions } from '../types';
-import { supabase } from '../lib/supabaseClient';
+import React, { createContext, useContext, useState, ReactNode, useEffect, useCallback } from 'react';
+import { Ingredient, Packaging, Product, StoreContextType, InviteToken, AppSettings, Role, UserAccess, Permissions, ApiResponse, LogEntry } from '../types';
+import { supabase, checkApiHealth } from '../lib/supabaseClient';
 import { useAuth } from '../context/AuthContext';
 
 const StoreContext = createContext<StoreContextType | undefined>(undefined);
@@ -23,14 +23,85 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const [tokens, setTokens] = useState<InviteToken[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
   const [userAccessList, setUserAccessList] = useState<UserAccess[]>([]);
+  const [logs, setLogs] = useState<LogEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isDbConnected, setIsDbConnected] = useState(true);
 
-  // Authorization strictly follows user metadata
-  const isAuthorized = !!user?.user_metadata?.is_authorized;
+  const isAuthorized = !!(
+    user?.user_metadata?.is_authorized || 
+    userAccessList.some(a => a.userId === user?.id)
+  );
+
+  const addLog = useCallback((level: LogEntry['level'], source: string, message: string, details?: any) => {
+    const newLog: LogEntry = {
+      id: `log-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      timestamp: new Date().toISOString(),
+      level,
+      source,
+      message,
+      details
+    };
+    setLogs(prev => [newLog, ...prev].slice(0, 50));
+    if (level === 'error') console.error(`[${source}] ${message}`, details);
+  }, []);
+
+  const apiResponse = (success: boolean, message: string, code: number = 200, data: any = null): ApiResponse => {
+    const response: ApiResponse = { success, message, errorCode: code, data };
+    if (!success) response.error = message;
+    return response;
+  };
+
+  const verifyConnectivity = async (): Promise<boolean> => {
+    const isHealthy = await checkApiHealth();
+    setIsDbConnected(isHealthy);
+    if (!isHealthy) {
+      addLog('error', 'Network', 'Database core unreachable. Action aborted.');
+    }
+    return isHealthy;
+  };
+
+  const checkAuth = (): ApiResponse | null => {
+    if (!user) {
+      addLog('warn', 'Auth', 'Unauthorized operation attempt');
+      return apiResponse(false, "Unauthorized access", 401);
+    }
+    return null;
+  };
+
+  const refreshAuthStatus = useCallback(async () => {
+    if (!user) return;
+    try {
+      const { data: accessData, error: accessError } = await supabase
+        .from('user_access')
+        .select('*')
+        .eq('user_id', user.id)
+        .maybeSingle();
+      
+      if (accessError) {
+        if (accessError.code === 'PGRST116') {
+            // User entry not found in database yet, but session is valid
+            addLog('info', 'Auth', 'User profile not yet provisioned in registry.');
+            return;
+        }
+        throw accessError;
+      }
+
+      if (accessData) {
+        setUserAccessList(prev => {
+          const exists = prev.find(a => a.userId === user.id);
+          const updatedUser = { id: user.id, userId: user.id, email: user.email!, roleId: accessData.role_id };
+          return exists ? prev.map(a => a.userId === user.id ? updatedUser : a) : [...prev, updatedUser];
+        });
+        addLog('info', 'Auth', 'Database credentials verified and synchronized.');
+      }
+    } catch (err) {
+      addLog('error', 'Auth', 'Failed to sync user credentials from database', err);
+    }
+  }, [user, addLog]);
 
   useEffect(() => {
-    // Synchronize user access if authorized but no record exists (Self-Correction for Owners)
     if (user && isAuthorized && userAccessList.length === 0 && !loading) {
+       // Provision initial owner role if none exists and user is marked authorized
        updateUserAccess(user.id, { email: user.email!, roleId: 'owner' });
     }
   }, [user, isAuthorized, userAccessList, loading]);
@@ -49,6 +120,14 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
 
     const fetchData = async () => {
       setLoading(true);
+      addLog('info', 'Store', 'Verifying API connectivity...');
+      
+      const isHealthy = await checkApiHealth();
+      setIsDbConnected(isHealthy);
+      if (!isHealthy) {
+        addLog('error', 'Store', 'Database endpoint unreachable. Check connection settings.');
+      }
+
       try {
         const [ingRes, packRes, prodRes, roleRes, accessRes, tokenRes] = await Promise.all([
           supabase.from('ingredients').select('*').eq('user_id', user.id),
@@ -59,308 +138,309 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
           supabase.from('invite_tokens').select('*').order('created_at', { ascending: false })
         ]);
 
-        if (ingRes.data) {
-          setIngredients(ingRes.data.map(i => ({ 
-            id: i.id, 
-            name: i.name, 
-            stock: i.stock, 
-            unit: i.unit, 
-            costPerBaseUnit: i.cost_per_base_unit, 
-            minStock: i.min_stock 
-          })));
-        }
+        if (ingRes.data) setIngredients(ingRes.data.map(i => ({ 
+          id: i.id, name: i.name, stock: Number(i.stock), unit: i.unit, 
+          costPerBaseUnit: Number(i.cost_per_base_unit), minStock: i.min_stock 
+        })));
 
-        if (packRes.data) {
-          setPackaging(packRes.data.map(p => ({ 
-            id: p.id, 
-            name: p.name, 
-            capacity: p.capacity, 
-            stock: p.stock, 
-            cost: p.cost, 
-            minStock: p.min_stock 
-          })));
-        }
+        if (packRes.data) setPackaging(packRes.data.map(p => ({ 
+          id: p.id, name: p.name, capacity: Number(p.capacity), stock: Number(p.stock), 
+          cost: Number(p.cost), minStock: p.min_stock 
+        })));
 
-        if (prodRes.data) {
-          setProducts(prodRes.data.map(p => ({ 
-            id: p.id, 
-            name: p.name, 
-            category: p.category, 
-            packagingId: p.packaging_id, 
-            salePrice: p.sale_price, 
-            stock: p.stock, 
-            formula: (p.product_formulas || []).map((f: any) => ({ 
-              ingredientId: f.ingredient_id, 
-              amount: f.amount 
-            })) 
-          })));
-        }
-        
-        if (tokenRes.data) {
-          setTokens(tokenRes.data.map(t => ({
-            id: t.id,
-            token: t.token,
-            createdAt: t.created_at,
-            status: t.status,
-            usedBy: t.used_by
-          })));
-        }
+        if (prodRes.data) setProducts(prodRes.data.map(p => ({ 
+          id: p.id, name: p.name, category: p.category, packagingId: p.packaging_id, 
+          salePrice: Number(p.sale_price), stock: Number(p.stock), 
+          formula: (p.product_formulas || []).map((f: any) => ({ ingredientId: f.ingredient_id, amount: Number(f.amount) })) 
+        })));
 
         if (roleRes.data && roleRes.data.length > 0) {
           setRoles(roleRes.data.map(r => ({ id: r.id, name: r.name, permissions: r.permissions })));
         } else {
-          const initialRoles: Role[] = [
+          setRoles([
             { id: 'owner', name: 'Owner', permissions: { products: { read: true, create: true, update: true, delete: true }, ingredients: { read: true, create: true, update: true, delete: true }, packaging: { read: true, create: true, update: true, delete: true }, sales: { read: true, create: true, update: true, delete: true }, access: { read: true, create: true, update: true, delete: true } } },
             { id: 'sales-eng', name: 'Sales Engineer', permissions: { ...DEFAULT_PERMISSIONS, sales: { read: true, create: true, update: false, delete: false } } },
             { id: 'guest', name: 'Guest', permissions: DEFAULT_PERMISSIONS }
-          ];
-          setRoles(initialRoles);
+          ]);
         }
 
-        if (accessRes.data) {
-          const mappedAccessList = accessRes.data.map(a => ({ 
-            id: a.user_id, 
-            userId: a.user_id, 
-            email: a.email, 
-            roleId: a.role_id, 
-            customPermissions: a.custom_permissions 
-          }));
-          setUserAccessList(mappedAccessList);
-        }
+        if (accessRes.data) setUserAccessList(accessRes.data.map(a => ({ 
+          id: a.user_id, userId: a.user_id, email: a.email, roleId: a.role_id, customPermissions: a.custom_permissions 
+        })));
 
-      } catch (err) {
-        console.error("Error fetching data:", err);
+        addLog('info', 'Store', 'Core data sync complete.');
+      } catch (err: any) {
+        addLog('error', 'Store', 'Critical sync error', err);
       } finally {
         setLoading(false);
       }
     };
 
     fetchData();
-  }, [user]);
+  }, [user, addLog]);
 
-  const addRole = async (role: Role) => {
-    const { data, error } = await supabase.from('roles').insert([{ name: role.name, permissions: role.permissions }]).select().single();
-    if (data && !error) setRoles(prev => [...prev, { ...role, id: data.id }]);
-  };
+  const updateUserAccess = async (userId: string, updates: Partial<UserAccess>): Promise<ApiResponse> => {
+    const authCheck = checkAuth();
+    if (authCheck) return authCheck;
 
-  const updateRole = async (id: string, updates: Partial<Role>) => {
-    const { error } = await supabase.from('roles').update({ name: updates.name, permissions: updates.permissions }).eq('id', id);
-    if (!error) setRoles(prev => prev.map(r => r.id === id ? { ...r, ...updates } : r));
-  };
-
-  const removeRole = async (id: string) => {
-    if (id === 'owner') return;
-    const { error } = await supabase.from('roles').delete().eq('id', id);
-    if (!error) setRoles(prev => prev.filter(r => r.id !== id));
-  };
-
-  const updateUserAccess = async (userId: string, updates: Partial<UserAccess>) => {
     const { error } = await supabase.from('user_access').upsert({ 
-      user_id: userId, 
-      role_id: updates.roleId, 
-      email: updates.email,
-      custom_permissions: updates.customPermissions 
+      user_id: userId, role_id: updates.roleId, email: updates.email, custom_permissions: updates.customPermissions 
     });
-    if (!error) setUserAccessList(prev => {
+    
+    if (error) {
+      addLog('error', 'Access', 'User credential update failed', error);
+      return apiResponse(false, error.message, 500);
+    }
+
+    setUserAccessList(prev => {
       const exists = prev.find(a => a.userId === userId);
-      if (exists) return prev.map(a => a.userId === userId ? { ...a, ...updates } : a);
-      return [...prev, { id: userId, userId, email: updates.email!, roleId: updates.roleId!, ...updates }];
+      const entry = { id: userId, userId, email: updates.email!, roleId: updates.roleId!, ...updates };
+      return exists ? prev.map(a => a.userId === userId ? entry : a) : [...prev, entry];
     });
+    return apiResponse(true, "Credentials synchronized.");
   };
 
   const setAuthorized = async (val: boolean) => {
     if (!user) return;
     const { error } = await supabase.auth.updateUser({ data: { is_authorized: val } });
     if (!error && val) {
-      // First authorized user is treated as the Owner
-      const roleToAssign = userAccessList.length === 0 ? 'owner' : 'guest';
-      await updateUserAccess(user.id, { email: user.email!, roleId: roleToAssign });
+      await updateUserAccess(user.id, { email: user.email!, roleId: userAccessList.length === 0 ? 'owner' : 'guest' });
     }
+    await refreshAuthStatus();
   };
 
-  const addIngredient = async (ing: Ingredient) => {
-    if (!user) return;
-    const { data, error } = await supabase.from('ingredients').insert([{ name: ing.name, stock: ing.stock, unit: ing.unit, cost_per_base_unit: ing.costPerBaseUnit, min_stock: ing.minStock, user_id: user.id }]).select().single();
-    if (data && !error) setIngredients(prev => [...prev, { ...ing, id: data.id }]);
+  const addIngredient = async (ing: Ingredient): Promise<ApiResponse> => {
+    const authCheck = checkAuth();
+    if (authCheck) return authCheck;
+    
+    if (!(await verifyConnectivity())) return apiResponse(false, "Network Failure", 503);
+
+    addLog('info', 'Inventory', `Registering new material: ${ing.name}`);
+    const { data, error } = await supabase.from('ingredients').insert([{ 
+      name: ing.name, stock: Number(ing.stock), unit: ing.unit, cost_per_base_unit: Number(ing.costPerBaseUnit), 
+      min_stock: Number(ing.minStock), user_id: user?.id 
+    }]).select().single();
+    
+    if (error) {
+      addLog('error', 'Inventory', `Material registry failed: ${ing.name}`, error);
+      return apiResponse(false, error.message, 500);
+    }
+    
+    setIngredients(prev => [...prev, { ...ing, id: data.id }]);
+    addLog('info', 'Inventory', `Successfully registered: ${ing.name}`);
+    return apiResponse(true, "Ingredient added");
   };
 
-  const updateIngredient = async (id: string, updates: Partial<Ingredient>) => {
-    const dbUpdates: any = {};
-    if (updates.name !== undefined) dbUpdates.name = updates.name;
-    if (updates.stock !== undefined) dbUpdates.stock = updates.stock;
-    if (updates.costPerBaseUnit !== undefined) dbUpdates.cost_per_base_unit = updates.costPerBaseUnit;
-    if (updates.minStock !== undefined) dbUpdates.min_stock = updates.minStock;
-    const { error } = await supabase.from('ingredients').update(dbUpdates).eq('id', id);
-    if (!error) setIngredients(prev => prev.map(i => i.id === id ? { ...i, ...updates } : i));
+  const updateIngredient = async (id: string, updates: Partial<Ingredient>): Promise<ApiResponse> => {
+    const { error } = await supabase.from('ingredients').update(updates).eq('id', id);
+    if (error) return apiResponse(false, error.message, 500);
+    setIngredients(prev => prev.map(i => i.id === id ? { ...i, ...updates } : i));
+    return apiResponse(true, "Updated");
   };
 
-  const removeIngredient = async (id: string) => {
+  const removeIngredient = async (id: string): Promise<ApiResponse> => {
     const { error } = await supabase.from('ingredients').delete().eq('id', id);
-    if (!error) setIngredients(prev => prev.filter(i => i.id !== id));
+    if (error) return apiResponse(false, error.message, 500);
+    setIngredients(prev => prev.filter(i => i.id !== id));
+    return apiResponse(true, "Removed");
   };
 
-  const addPackaging = async (pack: Packaging) => {
-    if (!user) return;
-    const { data, error } = await supabase.from('packaging').insert([{ name: pack.name, capacity: pack.capacity, stock: pack.stock, cost: pack.cost, min_stock: pack.minStock, user_id: user.id }]).select().single();
-    if (data && !error) setPackaging(prev => [...prev, { ...pack, id: data.id }]);
-  };
+  const addPackaging = async (pack: Packaging): Promise<ApiResponse> => {
+    const authCheck = checkAuth();
+    if (authCheck) return authCheck;
 
-  const updatePackaging = async (id: string, updates: Partial<Packaging>) => {
-    const dbUpdates: any = {};
-    if (updates.stock !== undefined) dbUpdates.stock = updates.stock;
-    if (updates.cost !== undefined) dbUpdates.cost = updates.cost;
-    const { error } = await supabase.from('packaging').update(dbUpdates).eq('id', id);
-    if (!error) setPackaging(prev => prev.map(p => p.id === id ? { ...p, ...updates } : p));
-  };
+    if (!(await verifyConnectivity())) return apiResponse(false, "Network Failure", 503);
 
-  const addProduct = async (prod: Product) => {
-    if (!user) return;
-    const { data: productData, error: productError } = await supabase.from('products').insert([{ name: prod.name, category: prod.category, packaging_id: prod.packagingId, sale_price: prod.salePrice, stock: prod.stock, user_id: user.id }]).select().single();
-    if (productError || !productData) return;
-    const formulaPayload = prod.formula.map(f => ({ product_id: productData.id, ingredient_id: f.ingredientId, amount: f.amount }));
-    await supabase.from('product_formulas').insert(formulaPayload);
-    setProducts(prev => [...prev, { ...prod, id: productData.id }]);
-  };
-
-  const updateProduct = async (id: string, updates: Partial<Product>) => {
-    const dbUpdates: any = {};
-    if (updates.name !== undefined) dbUpdates.name = updates.name;
-    if (updates.salePrice !== undefined) dbUpdates.sale_price = updates.salePrice;
-    if (updates.stock !== undefined) dbUpdates.stock = updates.stock;
-    if (updates.category !== undefined) dbUpdates.category = updates.category;
-    const { error } = await supabase.from('products').update(dbUpdates).eq('id', id);
-    if (!error) setProducts(prev => prev.map(p => p.id === id ? { ...p, ...updates } : p));
-  };
-
-  const removeProduct = async (id: string) => {
-    const { error } = await supabase.from('products').delete().eq('id', id);
-    if (!error) setProducts(prev => prev.filter(p => p.id !== id));
-  };
-
-  const produceProduct = (productId: string, batchSize: number, packagingId?: string): { success: boolean; message: string } => {
-    const product = products.find((p) => p.id === productId);
-    if (!product) return { success: false, message: 'Product not found' };
+    addLog('info', 'Inventory', `Registering packaging SKU: ${pack.name}`);
+    const { data, error } = await supabase.from('packaging').insert([{ 
+      name: pack.name, capacity: Number(pack.capacity), stock: Number(pack.stock), cost: Number(pack.cost), 
+      min_stock: Number(pack.minStock), user_id: user?.id 
+    }]).select().single();
     
-    const targetPackagingId = packagingId || product.packagingId;
-    const selectedPackaging = packaging.find(p => p.id === targetPackagingId);
-    
-    if (!selectedPackaging) return { success: false, message: 'Packaging definition missing' };
-    
-    for (const item of product.formula) {
-      const ing = ingredients.find((i) => i.id === item.ingredientId);
-      if (!ing) return { success: false, message: `Ingredient not found` };
-      const totalNeeded = item.amount * batchSize; 
-      if (ing.stock < totalNeeded) return { success: false, message: `Insufficient stock for ${ing.name}.` };
+    if (error) {
+      addLog('error', 'Inventory', `Packaging SKU registry failed: ${pack.name}`, error);
+      return apiResponse(false, error.message, 500);
     }
-    const totalVolumeMl = batchSize * 1000;
-    const unitsToProduce = Math.floor(totalVolumeMl / selectedPackaging.capacity);
-    if (unitsToProduce <= 0) return { success: false, message: 'Batch size too small.' };
-    if (selectedPackaging.stock < unitsToProduce) return { success: false, message: `Insufficient glasses available.` };
+    
+    setPackaging(prev => [...prev, { ...pack, id: data.id }]);
+    addLog('info', 'Inventory', `Successfully registered packaging: ${pack.name}`);
+    return apiResponse(true, "Packaging added");
+  };
 
-    setIngredients(prev => prev.map(ing => {
-      const formulaItem = product.formula.find(f => f.ingredientId === ing.id);
-      if (formulaItem) {
-          const newStock = ing.stock - (formulaItem.amount * batchSize);
-          supabase.from('ingredients').update({ stock: newStock }).eq('id', ing.id).then(() => {});
-          return { ...ing, stock: newStock };
-      }
-      return ing;
+  const updatePackaging = async (id: string, updates: Partial<Packaging>): Promise<ApiResponse> => {
+    const { error } = await supabase.from('packaging').update(updates).eq('id', id);
+    if (error) return apiResponse(false, error.message, 500);
+    setPackaging(prev => prev.map(p => p.id === id ? { ...p, ...updates } : p));
+    return apiResponse(true, "Updated");
+  };
+
+  const addProduct = async (prod: Product): Promise<ApiResponse> => {
+    const authCheck = checkAuth();
+    if (authCheck) return authCheck;
+
+    if (!(await verifyConnectivity())) return apiResponse(false, "Network Failure", 503);
+
+    addLog('info', 'Catalog', `Initiating product registry sequence: ${prod.name}`);
+
+    // Phase 1: Create Product Header
+    const { data: pData, error: pError } = await supabase.from('products').insert([{ 
+      name: prod.name, category: prod.category, packaging_id: prod.packagingId, sale_price: Number(prod.salePrice), 
+      stock: Number(prod.stock), user_id: user?.id 
+    }]).select().single();
+
+    if (pError) {
+      addLog('error', 'Catalog', `Phase 1 Failure: Header creation failed for ${prod.name}`, pError);
+      return apiResponse(false, `Registry Error: ${pError.message}`, 500);
+    }
+
+    // Phase 2: Map Formulas
+    const fItems = prod.formula.map(f => ({ 
+      product_id: pData.id, 
+      ingredient_id: f.ingredientId, 
+      amount: Number(f.amount) 
     }));
+
+    const { error: fError } = await supabase.from('product_formulas').insert(fItems);
     
-    const newPackStock = selectedPackaging.stock - unitsToProduce;
-    supabase.from('packaging').update({ stock: newPackStock }).eq('id', selectedPackaging.id).then(() => {});
-    setPackaging(prev => prev.map(p => p.id === selectedPackaging.id ? { ...p, stock: newPackStock } : p));
+    if (fError) {
+      addLog('error', 'Catalog', `Phase 2 Failure: Formula mapping failed for ${prod.name}. Rollback initiated.`, fError);
+      await supabase.from('products').delete().eq('id', pData.id);
+      return apiResponse(false, `Registry Error: ${fError.message}. Product registration aborted.`, 500);
+    }
     
-    const newProdStock = product.stock + unitsToProduce;
-    supabase.from('products').update({ stock: newProdStock }).eq('id', productId).then(() => {});
-    setProducts(prev => prev.map(p => p.id === productId ? { ...p, stock: newProdStock } : p));
-    
-    return { success: true, message: `Produced ${unitsToProduce} units.` };
+    setProducts(prev => [...prev, { ...prod, id: pData.id }]);
+    addLog('info', 'Catalog', `Product sequence complete: ${prod.name} registered.`);
+    return apiResponse(true, "Product created");
   };
 
-  const recordSale = (productId: string, volumeL: number, pricePerUnit: number): { success: boolean; message: string } => {
+  const updateProduct = async (id: string, updates: Partial<Product>): Promise<ApiResponse> => {
+    const { error } = await supabase.from('products').update(updates).eq('id', id);
+    if (error) return apiResponse(false, error.message, 500);
+    setProducts(prev => prev.map(p => p.id === id ? { ...p, ...updates } : p));
+    return apiResponse(true, "Updated");
+  };
+
+  const removeProduct = async (id: string): Promise<ApiResponse> => {
+    const { error } = await supabase.from('products').delete().eq('id', id);
+    if (error) return apiResponse(false, error.message, 500);
+    setProducts(prev => prev.filter(p => p.id !== id));
+    return apiResponse(true, "Removed");
+  };
+
+  const produceProduct = async (productId: string, batchSize: number, packagingId?: string): Promise<ApiResponse> => {
+    const authCheck = checkAuth();
+    if (authCheck) return authCheck;
+
+    if (!(await verifyConnectivity())) return apiResponse(false, "Connection Failure", 503);
+
     const product = products.find(p => p.id === productId);
-    if (!product) return { success: false, message: 'Product not found' };
-    const pack = packaging.find(p => p.id === product.packagingId);
-    if (!pack) return { success: false, message: 'Packaging missing' };
-    const unitsToDeduct = Math.ceil((volumeL * 1000) / pack.capacity);
-    if (product.stock < unitsToDeduct) return { success: false, message: `Insufficient inventory.` };
-    const newStock = product.stock - unitsToDeduct;
-    supabase.from('products').update({ stock: newStock }).eq('id', productId).then(() => {});
-    setProducts(prev => prev.map(p => p.id === productId ? { ...p, stock: newStock } : p));
-    return { success: true, message: `Sale recorded.` };
+    if (!product) return apiResponse(false, "Product not found");
+    const pack = packaging.find(p => p.id === (packagingId || product.packagingId));
+    if (!pack) return apiResponse(false, "Packaging not found");
+
+    const units = Math.floor((batchSize * 1000) / Number(pack.capacity));
+    if (units <= 0) return apiResponse(false, "Volume too low for 1 unit");
+
+    try {
+      addLog('info', 'Production', `Starting production run: ${product.name} (Batch Size: ${batchSize}L)`);
+      const updates = [];
+      product.formula.forEach(f => {
+        const ing = ingredients.find(i => i.id === f.ingredientId);
+        if (ing) {
+          const newStock = Number(ing.stock) - (Number(f.amount) * batchSize);
+          updates.push(supabase.from('ingredients').update({ stock: newStock }).eq('id', ing.id));
+        }
+      });
+      updates.push(supabase.from('packaging').update({ stock: Number(pack.stock) - units }).eq('id', pack.id));
+      updates.push(supabase.from('products').update({ stock: Number(product.stock) + units }).eq('id', productId));
+      
+      const results = await Promise.all(updates);
+      const errors = results.filter(r => r.error);
+      if (errors.length > 0) throw new Error(errors[0].error?.message || "Concurrent update error");
+
+      addLog('info', 'Production', `Run successful: ${units} units added to stock.`);
+      return apiResponse(true, `Successfully produced ${units} units.`);
+    } catch (err: any) {
+      addLog('error', 'Production', `Production run failure: ${product.name}`, err);
+      return apiResponse(false, err.message, 500);
+    }
   };
 
-  const updateSettings = (newSettings: Partial<AppSettings>) => {
-    setSettings(prev => ({ ...prev, ...newSettings }));
+  const recordSale = async (productId: string, volumeL: number, pricePerUnit: number): Promise<ApiResponse> => {
+    const product = products.find(p => p.id === productId);
+    if (!product) return apiResponse(false, "Product not found");
+    const pack = packaging.find(p => p.id === product.packagingId);
+    if (!pack) return apiResponse(false, "Packaging not found");
+
+    const units = Math.ceil((volumeL * 1000) / Number(pack.capacity));
+    if (product.stock < units) return apiResponse(false, "Insufficient stock");
+
+    addLog('info', 'Sales', `Recording sale for ${product.name}: ${units} units.`);
+    const { error } = await supabase.from('products').update({ stock: Number(product.stock) - units }).eq('id', productId);
+    
+    if (error) {
+      addLog('error', 'Sales', `Sale record failed for ${product.name}`, error);
+      return apiResponse(false, error.message, 500);
+    }
+    
+    setProducts(prev => prev.map(p => p.id === productId ? { ...p, stock: Number(p.stock) - units } : p));
+    return apiResponse(true, "Sale recorded");
   };
+
+  const updateSettings = (newSettings: Partial<AppSettings>) => setSettings(prev => ({ ...prev, ...newSettings }));
 
   const generateInviteToken = async () => {
     if (!user) return '';
-    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-    let result = '';
-    for (let i = 0; i < 40; i++) result += chars.charAt(Math.floor(Math.random() * chars.length));
-    
-    const { data, error } = await supabase
-      .from('invite_tokens')
-      .insert([{ token: result, status: 'active', user_id: user.id }])
-      .select()
-      .single();
-    
-    if (error || !data) {
-      console.error("Token generation error:", error);
-      return '';
-    }
-    
-    setTokens(prev => [{ 
-      id: data.id, 
-      token: data.token, 
-      createdAt: data.created_at, 
-      status: data.status, 
-      usedBy: data.used_by 
-    }, ...prev]);
-    
-    return result;
+    const token = Array.from(crypto.getRandomValues(new Uint8Array(20))).map(b => b.toString(16).padStart(2, '0')).join('');
+    const { data, error } = await supabase.from('invite_tokens').insert([{ token, status: 'active', user_id: user.id }]).select().single();
+    if (error) return '';
+    setTokens(prev => [{ id: data.id, token: data.token, createdAt: data.created_at, status: data.status }, ...prev]);
+    return token;
   };
 
-  const validateInviteToken = async (tokenString: string, userId: string): Promise<{ success: boolean; message: string }> => {
-    const { data: tokenData, error: fetchError } = await supabase
-      .from('invite_tokens')
-      .select('*')
-      .eq('token', tokenString)
-      .eq('status', 'active')
-      .single();
-      
-    if (fetchError || !tokenData) return { success: false, message: 'Invalid or already used token.' };
-    
-    const { error: updateError } = await supabase
-      .from('invite_tokens')
-      .update({ status: 'used', used_by: userId })
-      .eq('id', tokenData.id);
-      
-    if (updateError) return { success: false, message: 'Error validating token.' };
-    
+  const validateInviteToken = async (token: string, userId: string): Promise<ApiResponse> => {
+    const { data, error } = await supabase.from('invite_tokens').select('*').eq('token', token).eq('status', 'active').single();
+    if (error || !data) return apiResponse(false, "Invalid token");
+    await supabase.from('invite_tokens').update({ status: 'used', used_by: userId }).eq('id', data.id);
     await setAuthorized(true);
-    return { success: true, message: 'Access granted.' };
+    return apiResponse(true, "Authorized");
   };
 
   const removeInviteToken = async (id: string) => {
-    const { error } = await supabase.from('invite_tokens').delete().eq('id', id);
-    if (!error) setTokens(prev => prev.filter(t => t.id !== id));
+    await supabase.from('invite_tokens').delete().eq('id', id);
+    setTokens(prev => prev.filter(t => t.id !== id));
+    return apiResponse(true, "Token removed");
+  };
+
+  const addRole = async (role: Role) => {
+    const { data, error } = await supabase.from('roles').insert([{ name: role.name, permissions: role.permissions }]).select().single();
+    if (error) return apiResponse(false, error.message, 500);
+    setRoles(prev => [...prev, { ...role, id: data.id }]);
+    return apiResponse(true, "Role created");
+  };
+
+  const updateRole = async (id: string, updates: Partial<Role>) => {
+    const { error } = await supabase.from('roles').update(updates).eq('id', id);
+    if (error) return apiResponse(false, error.message, 500);
+    setRoles(prev => prev.map(r => r.id === id ? { ...r, ...updates } : r));
+    return apiResponse(true, "Role updated");
+  };
+
+  const removeRole = async (id: string) => {
+    const { error } = await supabase.from('roles').delete().eq('id', id);
+    if (error) return apiResponse(false, error.message, 500);
+    setRoles(prev => prev.filter(r => r.id !== id));
+    return apiResponse(true, "Role removed");
   };
 
   return (
-    <StoreContext.Provider
-      value={{
-        ingredients, packaging, products, settings, tokens, roles, userAccessList, isAuthorized,
-        addIngredient, updateIngredient, removeIngredient,
-        addPackaging, updatePackaging,
-        addProduct, updateProduct, removeProduct,
-        produceProduct, recordSale, updateSettings,
-        generateInviteToken, validateInviteToken, removeInviteToken,
-        setAuthorized, addRole, updateRole, removeRole, updateUserAccess
-      }}
-    >
+    <StoreContext.Provider value={{
+      ingredients, packaging, products, settings, tokens, roles, userAccessList, isAuthorized, logs,
+      addLog, addIngredient, updateIngredient, removeIngredient, addPackaging, updatePackaging,
+      addProduct, updateProduct, removeProduct, produceProduct, recordSale, updateSettings,
+      generateInviteToken, validateInviteToken, removeInviteToken, setAuthorized,
+      addRole, updateRole, removeRole, updateUserAccess
+    }}>
       {!loading ? children : (
         <div className="min-h-screen bg-white dark:bg-vista-bg flex items-center justify-center">
             <img src={window.matchMedia('(prefers-color-scheme: dark)').matches ? "https://i.ibb.co/jvkPgrRH/Vista-1.png" : "https://i.ibb.co/M5KLbVnh/Vista-2.png"} alt="Vista Loading..." className="h-10 w-auto animate-pulse opacity-70" />

@@ -56,6 +56,35 @@ export const PageHeader: React.FC<{
   </header>
 );
 
+export const Alert: React.FC<{
+  type: 'success' | 'error' | 'warning' | 'info';
+  message: string;
+  onClose?: () => void;
+}> = ({ type, message, onClose }) => {
+  const styles = {
+    success: 'bg-emerald-50 text-emerald-700 border-emerald-100 dark:bg-emerald-950/20 dark:text-emerald-400 dark:border-emerald-800',
+    error: 'bg-red-50 text-red-700 border-red-100 dark:bg-red-950/20 dark:text-red-400 dark:border-red-800',
+    warning: 'bg-amber-50 text-amber-700 border-amber-100 dark:bg-amber-950/20 dark:text-amber-400 dark:border-amber-800',
+    info: 'bg-neutral-50 text-neutral-700 border-neutral-100 dark:bg-neutral-800/40 dark:text-neutral-400 dark:border-neutral-700'
+  };
+
+  return (
+    <div className={`p-4 rounded-sm border flex items-center justify-between gap-4 animate-fade-in ${styles[type]}`}>
+      <div className="flex items-center gap-3">
+        <span className="text-[10px] font-bold uppercase tracking-widest">{type}</span>
+        <p className="text-[11px] font-medium leading-relaxed">{message}</p>
+      </div>
+      {onClose && (
+        <button onClick={onClose} className="opacity-40 hover:opacity-100 transition-opacity">
+          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      )}
+    </div>
+  );
+};
+
 export const KpiCard: React.FC<{ 
   label: string; 
   value: string | number; 
@@ -194,14 +223,21 @@ export const ModalBase: React.FC<{
   children: React.ReactNode;
   footer?: React.ReactNode;
   maxWidth?: string;
-}> = ({ isOpen, onClose, title, children, footer, maxWidth = 'max-w-[500px]' }) => {
+  isLoading?: boolean;
+}> = ({ isOpen, onClose, title, children, footer, maxWidth = 'max-w-[500px]', isLoading = false }) => {
   if (!isOpen) return null;
   return createPortal(
     <div className="fixed inset-0 bg-neutral-950/70 backdrop-blur-sm flex items-center justify-center z-[100] p-4 animate-fade-in">
-      <div className={`bg-white dark:bg-neutral-900 rounded-sm w-full ${maxWidth} border border-neutral-100 dark:border-neutral-800 flex flex-col max-h-[90vh] overflow-hidden shadow-2xl`}>
+      <div className={`bg-white dark:bg-neutral-900 rounded-sm w-full ${maxWidth} border border-neutral-100 dark:border-neutral-800 flex flex-col max-h-[90vh] overflow-hidden shadow-2xl relative`}>
+        {isLoading && (
+          <div className="absolute inset-0 z-50 bg-white/40 dark:bg-neutral-900/40 backdrop-blur-[2px] flex flex-col items-center justify-center gap-4 animate-fade-in">
+            <div className="w-8 h-8 border-2 border-neutral-200 dark:border-neutral-800 border-t-neutral-900 dark:border-t-vista-accent rounded-full animate-spin" />
+            <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-neutral-600 dark:text-neutral-300">Synchronizing...</span>
+          </div>
+        )}
         <div className="flex justify-between items-center px-8 py-6 border-b border-neutral-100 dark:border-neutral-800">
           <h3 className="text-lg font-light text-neutral-900 dark:text-vista-text uppercase tracking-widest">{title}</h3>
-          <button onClick={onClose} className="text-neutral-400 hover:text-neutral-900 dark:hover:text-vista-text transition-colors">
+          <button onClick={onClose} disabled={isLoading} className="text-neutral-400 hover:text-neutral-900 dark:hover:text-vista-text transition-colors disabled:opacity-20">
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M6 18L18 6M6 6l12 12" /></svg>
           </button>
         </div>
@@ -215,16 +251,16 @@ export const ModalBase: React.FC<{
 
 // --- Select Components ---
 
-export const CustomSelect: React.FC<CustomSelectProps> = ({ options, value, onChange, placeholder = 'Select...', className = '' }) => {
+export const CustomSelect: React.FC<CustomSelectProps> = ({ options, value, onChange, placeholder = 'Select...', className = '', disabled = false }) => {
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const coords = useDropdownPosition(containerRef, isOpen);
   const selectedOption = options.find(o => o.value === value);
 
   return (
-    <div className={`relative ${className}`} ref={containerRef}>
+    <div className={`relative ${className} ${disabled ? 'opacity-50 pointer-events-none' : ''}`} ref={containerRef}>
       <div 
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={() => !disabled && setIsOpen(!isOpen)}
         className="w-full bg-white dark:bg-vista-bg border border-neutral-200 dark:border-neutral-800 rounded-sm p-3 text-sm flex justify-between items-center cursor-pointer min-h-[44px] hover:border-neutral-400 transition-all"
       >
         <span className={selectedOption ? 'text-neutral-900 dark:text-vista-text' : 'text-neutral-400'}>
@@ -262,7 +298,7 @@ export const CustomSelect: React.FC<CustomSelectProps> = ({ options, value, onCh
   );
 };
 
-export const SearchableSelect: React.FC<SearchableSelectProps> = ({ options, value, onChange, placeholder = 'Search...', className = '' }) => {
+export const SearchableSelect: React.FC<SearchableSelectProps> = ({ options, value, onChange, placeholder = 'Search...', className = '', disabled = false }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState('');
   const containerRef = useRef<HTMLDivElement>(null);
@@ -275,9 +311,9 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({ options, val
   useEffect(() => { if (isOpen) setTimeout(() => inputRef.current?.focus(), 50); }, [isOpen]);
 
   return (
-    <div className={`relative ${className}`} ref={containerRef}>
+    <div className={`relative ${className} ${disabled ? 'opacity-50 pointer-events-none' : ''}`} ref={containerRef}>
       <div 
-        onClick={() => { setIsOpen(true); setSearch(''); }}
+        onClick={() => !disabled && setIsOpen(true)}
         className="w-full bg-white dark:bg-vista-bg border border-neutral-200 dark:border-neutral-800 rounded-sm p-3 text-sm flex justify-between items-center cursor-pointer min-h-[44px] hover:border-neutral-400 transition-all"
       >
         <span className={selectedOption ? 'text-neutral-900 dark:text-vista-text font-medium' : 'text-neutral-400'}>
@@ -317,13 +353,13 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({ options, val
 };
 
 export const ConfirmModal: React.FC<ConfirmModalProps> = ({ 
-  isOpen, title, message, onConfirm, onCancel, confirmText = 'Confirm', isDestructive = false 
+  isOpen, title, message, onConfirm, onCancel, confirmText = 'Confirm', isDestructive = false, isLoading = false
 }) => {
   return (
-    <ModalBase isOpen={isOpen} onClose={onCancel} title={title} maxWidth="max-w-[420px]" footer={
+    <ModalBase isOpen={isOpen} onClose={onCancel} title={title} maxWidth="max-w-[420px]" isLoading={isLoading} footer={
       <>
-        <button onClick={onCancel} className="px-6 py-2.5 text-neutral-400 hover:text-neutral-900 dark:hover:text-vista-text text-[10px] font-bold uppercase tracking-widest transition-colors">Cancel</button>
-        <button onClick={onConfirm} className={`px-8 py-2.5 text-white dark:text-neutral-900 rounded-sm text-[10px] font-bold uppercase tracking-widest transition-all hover:opacity-90 active:scale-95 ${isDestructive ? 'bg-red-600' : 'bg-neutral-900 dark:bg-vista-accent'}`}>{confirmText}</button>
+        <button onClick={onCancel} disabled={isLoading} className="px-6 py-2.5 text-neutral-400 hover:text-neutral-900 dark:hover:text-vista-text text-[10px] font-bold uppercase tracking-widest transition-colors">Cancel</button>
+        <button onClick={onConfirm} disabled={isLoading} className={`px-8 py-2.5 text-white dark:text-neutral-900 rounded-sm text-[10px] font-bold uppercase tracking-widest transition-all hover:opacity-90 active:scale-95 ${isDestructive ? 'bg-red-600' : 'bg-neutral-900 dark:bg-vista-accent'}`}>{confirmText}</button>
       </>
     }>
       <p className="text-sm text-neutral-500 dark:text-neutral-400 font-light leading-relaxed">{message}</p>
@@ -338,6 +374,7 @@ interface CustomSelectProps {
   onChange: (value: string) => void;
   placeholder?: string;
   className?: string;
+  disabled?: boolean;
 }
 interface SearchableSelectProps {
   options: Option[];
@@ -345,6 +382,7 @@ interface SearchableSelectProps {
   onChange: (value: string) => void;
   placeholder?: string;
   className?: string;
+  disabled?: boolean;
 }
 interface ConfirmModalProps {
   isOpen: boolean;
@@ -354,4 +392,5 @@ interface ConfirmModalProps {
   onCancel: () => void;
   confirmText?: string;
   isDestructive?: boolean;
+  isLoading?: boolean;
 }
