@@ -16,6 +16,7 @@ export interface Ingredient {
   unit: Unit; // display unit (usually kg or l)
   costPerBaseUnit: number; // cost per g or ml
   minStock?: number; // alert threshold in base units
+  isCommon?: boolean; // If true, stock is treated as infinite
 }
 
 export interface Packaging {
@@ -57,7 +58,7 @@ export interface FormulaDraft {
 
 export interface NavigationState {
   inventoryTab: 'ingredients' | 'packaging';
-  insightsTab: 'performance' | 'marketing' | 'advisor';
+  insightsTab: 'performance' | 'marketing';
   activeMainView: 'dashboard' | 'production' | 'inventory' | 'insights' | 'settings' | 'access';
 }
 
@@ -115,7 +116,6 @@ export interface LogEntry {
 export interface SystemStatus {
   auth: 'connected' | 'error' | 'loading';
   database: 'connected' | 'error' | 'loading';
-  ai: 'configured' | 'missing' | 'unknown';
 }
 
 export interface StoreContextType {
@@ -140,6 +140,7 @@ export interface StoreContextType {
   removeIngredient: (id: string) => Promise<ApiResponse>;
   addPackaging: (pack: Packaging) => Promise<ApiResponse>;
   updatePackaging: (id: string, updates: Partial<Packaging>) => Promise<ApiResponse>;
+  removePackaging: (id: string) => Promise<ApiResponse>;
   addProduct: (prod: Product) => Promise<ApiResponse>;
   updateProduct: (id: string, updates: Partial<Product>) => Promise<ApiResponse>;
   removeProduct: (id: string) => Promise<ApiResponse>;

@@ -31,8 +31,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setView }) => {
 
   const projectedRevenue = useMemo(() => products.reduce((acc, p) => acc + (p.stock * (p.salePrice || 0)), 0), [products]);
   const projectedProfit = useMemo(() => products.reduce((acc, p) => acc + (getFinancials(p).profit * p.stock), 0), [products, ingredients, packaging]);
+  
   const inventoryCapital = useMemo(() => {
-    const ingValue = ingredients.reduce((acc, i) => acc + (i.stock * (i.costPerBaseUnit || 0)), 0);
+    // Exclude Common ingredients (infinite stock items) from active capital
+    const ingValue = ingredients.reduce((acc, i) => acc + (i.isCommon ? 0 : i.stock * (i.costPerBaseUnit || 0)), 0);
     const packValue = packaging.reduce((acc, p) => acc + (p.stock * (p.cost || 0)), 0);
     return ingValue + packValue;
   }, [ingredients, packaging]);

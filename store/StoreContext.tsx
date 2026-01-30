@@ -150,7 +150,9 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
 
         if (ingRes.data) setIngredients(ingRes.data.map(i => ({ 
           id: i.id, name: i.name, stock: Number(i.stock), unit: i.unit, 
-          costPerBaseUnit: Number(i.cost_per_base_unit), minStock: i.min_stock 
+          costPerBaseUnit: Number(i.cost_per_base_unit), minStock: i.min_stock,
+          // Derive isCommon from the stock value proxy (>= 900M)
+          isCommon: Number(i.stock) >= 900000000 
         })));
 
         if (packRes.data) setPackaging(packRes.data.map(p => ({ 
@@ -226,18 +228,38 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     const authCheck = checkAuth();
     if (authCheck) return authCheck;
     if (!(await verifyConnectivity())) return apiResponse(false, "Network Failure", 503);
+    
+    // Do not include is_common in DB payload
     const { data, error } = await supabase.from('ingredients').insert([{ 
       name: ing.name, stock: Number(ing.stock), unit: ing.unit, cost_per_base_unit: Number(ing.costPerBaseUnit), 
       min_stock: Number(ing.minStock), user_id: user?.id 
     }]).select().single();
+    
     if (error) return apiResponse(false, error.message, 500);
     setIngredients(prev => [...prev, { ...ing, id: data.id }]);
     return apiResponse(true, "Ingredient added");
   };
 
   const updateIngredient = async (id: string, updates: Partial<Ingredient>): Promise<ApiResponse> => {
-    const { error } = await supabase.from('ingredients').update(updates).eq('id', id);
+    const dbUpdates: any = { ...updates };
+    
+    // Map camelCase to snake_case for DB
+    if (updates.costPerBaseUnit !== undefined) {
+      dbUpdates.cost_per_base_unit = updates.costPerBaseUnit;
+      delete dbUpdates.costPerBaseUnit;
+    }
+    if (updates.minStock !== undefined) {
+      dbUpdates.min_stock = updates.minStock;
+      delete dbUpdates.minStock;
+    }
+    
+    // Clean up fields that don't exist in DB or are read-only
+    delete dbUpdates.isCommon;
+    delete dbUpdates.id;
+    
+    const { error } = await supabase.from('ingredients').update(dbUpdates).eq('id', id);
     if (error) return apiResponse(false, error.message, 500);
+    
     setIngredients(prev => prev.map(i => i.id === id ? { ...i, ...updates } : i));
     return apiResponse(true, "Updated");
   };
@@ -267,6 +289,13 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     if (error) return apiResponse(false, error.message, 500);
     setPackaging(prev => prev.map(p => p.id === id ? { ...p, ...updates } : p));
     return apiResponse(true, "Updated");
+  };
+
+  const removePackaging = async (id: string): Promise<ApiResponse> => {
+    const { error } = await supabase.from('packaging').delete().eq('id', id);
+    if (error) return apiResponse(false, error.message, 500);
+    setPackaging(prev => prev.filter(p => p.id !== id));
+    return apiResponse(true, "Packaging removed");
   };
 
   const addProduct = async (prod: Product): Promise<ApiResponse> => {
@@ -320,7 +349,8 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       const updates = [];
       product.formula.forEach(f => {
         const ing = ingredients.find(i => i.id === f.ingredientId);
-        if (ing) {
+        // Only deduct stock if ingredient is not marked as Common
+        if (ing && !ing.isCommon) {
           const deduction = (f.percentage / 100) * batchSize * 1000;
           updates.push(supabase.from('ingredients').update({ stock: Number(ing.stock) - deduction }).eq('id', ing.id));
         }
@@ -397,7 +427,7 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     <StoreContext.Provider value={{
       ingredients, packaging, products, settings, tokens, roles, userAccessList, isAuthorized, logs,
       formulaDraft, setFormulaDraft, navigation, updateNavigation,
-      addLog, addIngredient, updateIngredient, removeIngredient, addPackaging, updatePackaging,
+      addLog, addIngredient, updateIngredient, removeIngredient, addPackaging, updatePackaging, removePackaging,
       addProduct, updateProduct, removeProduct, produceProduct, recordSale, updateSettings,
       generateInviteToken, validateInviteToken, removeInviteToken, setAuthorized,
       addRole, updateRole, removeRole, updateUserAccess

@@ -23,7 +23,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ darkMode, setDarkMod
   
   // API Test State
   const [isTesting, setIsTesting] = useState(false);
-  const [testResults, setTestResults] = useState<{auth: boolean, db: boolean, ai: boolean} | null>(null);
+  const [testResults, setTestResults] = useState<{auth: boolean, db: boolean} | null>(null);
 
   const initial = (user?.user_metadata?.full_name || user?.email || '?').charAt(0).toUpperCase();
 
@@ -84,7 +84,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ darkMode, setDarkMod
     setMessage(null);
     addLog('info', 'Diagnostics', 'Executing system-wide connectivity test');
     
-    const results = { auth: false, db: false, ai: false };
+    const results = { auth: false, db: false };
     
     try {
         // Test Auth
@@ -94,9 +94,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ darkMode, setDarkMod
         // Test DB (Specific table permission check)
         const { error: dbError } = await supabase.from('products').select('id').limit(1);
         results.db = !dbError;
-        
-        // Test AI
-        results.ai = !!process.env.API_KEY && process.env.API_KEY !== '';
         
         setTestResults(results);
         setMessage({ type: 'success', text: 'Diagnostics complete. Check System Status below.' });
@@ -201,13 +198,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ darkMode, setDarkMod
                         <StatusBadge 
                           value={testResults ? (testResults.db ? 'Connected' : 'Offline') : 'Online'} 
                           type={testResults ? (testResults.db ? 'positive' : 'negative') : 'neutral'} 
-                        />
-                    </div>
-                    <div className="flex items-center justify-between p-3 bg-neutral-50 dark:bg-neutral-800/30 rounded-sm border border-neutral-100 dark:border-neutral-800">
-                        <span className="text-xs font-medium">Gemini Intelligence</span>
-                        <StatusBadge 
-                          value={testResults ? (testResults.ai ? 'Configured' : 'Missing Key') : 'Active'} 
-                          type={testResults ? (testResults.ai ? 'positive' : 'warning') : 'neutral'} 
                         />
                     </div>
                 </div>

@@ -36,6 +36,17 @@ const ProduceModal: React.FC<{ onClose: () => void; initialProductId?: string }>
     const shortages = selectedProduct.formula.map(item => {
       const ing = ingredients.find(i => i.id === item.ingredientId);
       const needed = (item.percentage / 100) * batchSizeL * 1000;
+      
+      // If common ingredient (e.g., Water), treat availability as infinite
+      if (ing?.isCommon) {
+        return {
+          name: ing.name,
+          needed,
+          available: Infinity,
+          ok: true
+        };
+      }
+
       return {
         name: ing?.name || 'Unknown Ingredient',
         needed,
@@ -165,10 +176,10 @@ const ProduceModal: React.FC<{ onClose: () => void; initialProductId?: string }>
                     <div className="flex justify-between text-[11px]">
                        <span className="text-neutral-500">{s.name}</span>
                        <span className={`font-bold ${s.ok ? 'text-neutral-900 dark:text-vista-text' : 'text-red-500'}`}>
-                          {s.needed.toFixed(1)} / {s.available.toFixed(1)}
+                          {s.needed.toFixed(1)} / {s.available === Infinity ? '∞' : s.available.toFixed(1)}
                        </span>
                     </div>
-                    <ProgressBar progress={(s.available / Math.max(1, s.needed)) * 100} color={s.ok ? 'bg-vista-accent' : 'bg-red-500'} />
+                    <ProgressBar progress={s.available === Infinity ? 100 : (s.available / Math.max(1, s.needed)) * 100} color={s.ok ? 'bg-vista-accent' : 'bg-red-500'} />
                   </div>
                 ))}
              </div>
@@ -327,7 +338,7 @@ const AddProductForm: React.FC<AddProductFormProps> = ({ category, onClose }) =>
           
           <div className="flex flex-col sm:flex-row gap-3 mb-6 items-stretch">
             <div className="flex-1">
-              <SearchableSelect options={ingredients.map(i => ({ value: i.id, label: i.name, subLabel: `${i.unit} stock` }))} value={ingId} onChange={setIngId} placeholder="Add ingredient..." />
+              <SearchableSelect options={ingredients.map(i => ({ value: i.id, label: i.name, subLabel: i.isCommon ? 'Common Resource' : `${i.unit} stock` }))} value={ingId} onChange={setIngId} placeholder="Add ingredient..." />
             </div>
             <div className="flex gap-3">
               <input type="number" className="flex-1 sm:w-28 border border-neutral-200 dark:border-neutral-800 rounded-sm p-3 text-sm text-neutral-900 dark:text-vista-text bg-transparent outline-none focus:border-vista-accent" placeholder="%" value={percentage} onChange={e => setPercentage(e.target.value)} />

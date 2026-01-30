@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 
@@ -155,14 +154,71 @@ interface TableColumn<T> {
   isHiddenMobile?: boolean;
 }
 
+const DataTableRow = <T extends { id: string | number }>({ 
+  item, 
+  columns, 
+  onLongPress 
+}: { 
+  item: T, 
+  columns: TableColumn<T>[], 
+  onLongPress?: (item: T) => void 
+}) => {
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleTouchStart = () => {
+    if (!onLongPress) return;
+    timerRef.current = setTimeout(() => {
+      onLongPress(item);
+      if (navigator.vibrate) navigator.vibrate(50);
+    }, 600);
+  };
+
+  const cancelPress = () => {
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+  };
+
+  return (
+    <tr 
+      className="hover:bg-neutral-50/20 dark:hover:bg-neutral-900/10 transition-colors group touch-manipulation select-none"
+      onTouchStart={handleTouchStart}
+      onTouchEnd={cancelPress}
+      onTouchMove={cancelPress}
+      onContextMenu={(e) => {
+         if (onLongPress && window.matchMedia('(pointer: coarse)').matches) {
+           e.preventDefault();
+         }
+      }}
+    >
+      {columns.map((col, idx) => (
+        <td 
+          key={idx} 
+          className={`
+            px-6 py-5 text-neutral-600 dark:text-neutral-400 group-hover:text-neutral-900 dark:group-hover:text-vista-text transition-colors
+            ${col.align === 'right' ? 'text-right font-mono text-xs' : col.align === 'center' ? 'text-center' : 'text-left'}
+            ${col.isHiddenMobile ? 'hidden sm:table-cell' : ''}
+            ${col.className || ''}
+          `}
+        >
+          {col.render(item)}
+        </td>
+      ))}
+    </tr>
+  );
+};
+
 export const DataTable = <T extends { id: string | number }>({ 
   data, 
   columns, 
-  emptyMessage = "No records found" 
+  emptyMessage = "No records found",
+  onRowLongPress
 }: { 
   data: T[]; 
   columns: TableColumn<T>[]; 
   emptyMessage?: string;
+  onRowLongPress?: (item: T) => void;
 }) => (
   <div className="bg-white dark:bg-vista-bg border border-neutral-100 dark:border-neutral-800 overflow-hidden rounded-sm">
     <div className="overflow-x-auto w-full">
@@ -186,21 +242,9 @@ export const DataTable = <T extends { id: string | number }>({
         <tbody className="divide-y divide-neutral-50 dark:divide-neutral-800/50">
           {data.length > 0 ? (
             data.map(item => (
-              <tr key={item.id} className="hover:bg-neutral-50/20 dark:hover:bg-neutral-900/10 transition-colors group">
-                {columns.map((col, idx) => (
-                  <td 
-                    key={idx} 
-                    className={`
-                      px-6 py-5 text-neutral-600 dark:text-neutral-400 group-hover:text-neutral-900 dark:group-hover:text-vista-text transition-colors
-                      ${col.align === 'right' ? 'text-right font-mono text-xs' : col.align === 'center' ? 'text-center' : 'text-left'}
-                      ${col.isHiddenMobile ? 'hidden sm:table-cell' : ''}
-                      ${col.className || ''}
-                    `}
-                  >
-                    {col.render(item)}
-                  </td>
-                ))}
-              </tr>
+              <React.Fragment key={item.id}>
+                <DataTableRow item={item} columns={columns} onLongPress={onRowLongPress} />
+              </React.Fragment>
             ))
           ) : (
             <tr>
